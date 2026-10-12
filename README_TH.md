@@ -10,7 +10,41 @@
 - Tailwind CSS
 - lucide-react
 
-หน้าเริ่มต้นเป็น dashboard ภาษาไทยสำหรับผู้ดูแลระบบ โดยข้อมูลตัวอย่างอยู่ใน `lib/mock-data.ts` และยังไม่ได้เชื่อมต่อ API จริง
+หน้าเริ่มต้นเป็น UI prototype แบบ responsive สำหรับสมาชิก เทรนเนอร์ และผู้ดูแลระบบ ข้อมูลและการทำงานทั้งหมดเป็นตัวอย่างที่บันทึกใน browser เท่านั้น และยังไม่ได้เชื่อมต่อหรือพัฒนา API
+
+## UI prototype
+
+### หน้าและบัญชีตัวอย่าง
+
+- `/` หน้าเริ่มต้นพร้อมทางเข้า Sign in และสร้างบัญชี
+- `/signin` และ `/signup` หน้าเข้าสู่ระบบและสมัครสมาชิกแยกกัน
+- `/member` พื้นที่สมาชิกสำหรับสำรวจเทรนเนอร์ จอง ดูแพ็กเกจ รีวิว และดูความคืบหน้า
+- `/trainer` ตารางนัดหมาย สมาชิก และข้อความระหว่างสมาชิกกับเทรนเนอร์
+- `/admin` ภาพรวมการจัดการสมาชิก เทรนเนอร์ booking แพ็กเกจ และ workflow
+
+บัญชีสำหรับทดลอง UI:
+
+| บทบาท | Username / ID | Password |
+| --- | --- | --- |
+| Member | `alex` | `FitBooking123!` |
+| Trainer | `coach.tan` | `Coach@123` |
+| Admin | `FB-ADMIN-001` | `Admin@123` |
+
+สมาชิกสามารถสมัครบัญชีตัวอย่างใหม่ได้ โดยข้อมูลโปรไฟล์และ session เก็บใน `localStorage` ของ browser ปัจจุบันเท่านั้น การเข้าสู่ระบบ บทบาท staff การเปลี่ยนสถานะงาน และข้อความเป็นการจำลอง ไม่ใช่ authentication หรือ authorization ที่ปลอดภัย ห้ามใช้ credentials เหล่านี้จริง และห้ามถือว่า browser role guard ปกป้องข้อมูล server ได้
+
+### หน้าจอ prototype
+
+หน้าสมาชิกประกอบด้วย:
+
+1. Welcome และ member dashboard
+2. Explore coaches และ coach profile
+3. Courses และ booking
+4. Checkout และ booking confirmation (ไม่มีการชำระเงินจริง)
+5. My bookings, package list และหน้า package details
+6. Reviews, progress และ member profile/settings
+7. Messages กับ trainer
+
+หน้า trainer และ admin ใช้ theme เดียวกับ member แต่มี workspace และ navigation แยกตามบทบาท หน้า schedule, chat, admin tables และ workflow controls ใช้ข้อมูลตัวอย่างและเปลี่ยนสถานะใน browser เพื่อทดสอบ interaction เท่านั้น ไม่มีการสร้าง booking, รับชำระเงินจริง หรืออัปเดตฐานข้อมูล
 
 ## การติดตั้งและรัน
 
@@ -41,15 +75,24 @@ frontend/
 ├── app/
 │   ├── globals.css
 │   ├── layout.tsx
-│   └── page.tsx
+│   ├── page.tsx
+│   ├── signin/page.tsx
+│   ├── signup/page.tsx
+│   ├── member/page.tsx
+│   ├── trainer/page.tsx
+│   └── admin/page.tsx
 ├── components/
+│   ├── fitbooking-prototype.tsx
+│   ├── fitbooking-workspaces.tsx
 │   ├── booking-status.tsx
 │   ├── dashboard-shell.tsx
 │   └── stat-card.tsx
 ├── lib/
 │   ├── api-client.ts
+│   ├── demo-auth.ts
 │   ├── database.ts
 │   └── mock-data.ts
+├── public/fitbooking-kettlebell.png
 ├── package.json
 ├── tailwind.config.ts
 └── tsconfig.json
@@ -190,9 +233,8 @@ frontend ส่งเพียง `coach_id` หรือข้อมูลช�
 
 ## แนวทางพัฒนาต่อ
 
-1. เพิ่ม authentication และ role guard สำหรับ `MEMBER`, `COACH`, `ADMIN`
-2. เพิ่ม API client กลางสำหรับ FastAPI
-3. เพิ่มหน้า booking calendar ที่อ่าน `CoachScheduleSlot`
-4. เพิ่มฟอร์มสร้าง booking โดยใช้ validation ตาม `booking` CHECK constraints
-5. เพิ่มหน้าสมาชิก แพ็กเกจ ออเดอร์ รีวิว และ KPI
-6. เพิ่ม error mapping สำหรับ foreign key, CHECK constraint และ trigger error จาก MySQL
+1. รอ API contract ที่ยืนยันแล้วก่อนเชื่อมต่อ backend; ห้ามสร้างหรือเดา endpoints ในงาน UI-only
+2. ย้าย authentication, session, role authorization, profile, messages และ workflow mutations ไปให้ backend เป็นผู้ตรวจสอบและจัดเก็บ
+3. เปลี่ยน browser-only preview data เป็นข้อมูล API โดยคงชื่อ SQL columns และ enum ตาม schema
+4. เพิ่มหน้า booking calendar และ validation หลังยืนยัน API/กฎธุรกิจ
+5. เพิ่ม error mapping สำหรับ foreign key, CHECK constraint และ trigger error จาก MySQL

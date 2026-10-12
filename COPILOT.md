@@ -6,7 +6,7 @@ Use this file as the project-specific guide when changing the FitBooking fronten
 
 - Product: Thai-language personal-training booking platform for Chiang Mai.
 - Stack: Next.js 14 App Router, React 18, TypeScript, Tailwind CSS 3, and `lucide-react`.
-- The current app is an admin dashboard using sample data from `lib/mock-data.ts`. The FastAPI backend is not implemented in this frontend repository.
+- The current app is a frontend-only FitBooking prototype. No backend/API implementation is in scope for the current UI work.
 - Install and run with `npm install` and `npm run dev`. Use `npm run build` and `npm run lint` for checks.
 - Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to the FastAPI base URL; `.env.example` defaults to `http://localhost:8000`.
 
@@ -63,6 +63,10 @@ The database design document marks several workflow values as needing confirmati
 - Keep mock data clearly separated from live API state. Do not silently fall back to mock records when a live request fails.
 - Booking, payment, package-credit, cancellation, refund, review, and KPI changes are multi-step backend transactions. Submit the user action to the API and display the returned result; do not simulate a committed transaction in the client.
 - The backend derives dynamic schedule table names from its stored, validated `coach_no`. A client must never choose or provide that table name.
+- Current sign-in, registration, role routing, profile edits, messages, and staff workflow interactions are browser-local previews only. They use `localStorage` and demo data; they do not call FastAPI, create database records, or provide production authentication/authorization.
+- Never describe a client-side role guard, demo ID, or browser-stored password hash as access control. The admin and trainer demo identities are for UI review only. Production account creation, credential verification, role authorization, password recovery, messaging, and all workflow changes must be implemented and enforced by the backend after an API contract is approved.
+- Member self-registration in this prototype collects `username`, `display_name`, `email`, `phone`, and optional member profile fields (`gender`, `birth_date`, `height_cm`, `weight_kg`, `fitness_goal`). New self-registered profiles are `MEMBER` only. Staff roles are limited to explicitly labeled demo profiles; never add a client-side staff privilege-creation path.
+- The demo sign-in stores only a browser-local profile/session projection and a local password hash, never the plaintext password in the session. This remains insecure demo behavior: the browser and its storage are user-controlled, and the preview hash is not a substitute for the server's password handling.
 
 ## UI and accessibility
 
@@ -81,7 +85,12 @@ The database design document marks several workflow values as needing confirmati
 
 ## Existing implementation notes
 
-- `app/page.tsx` is a demo admin dashboard: several displayed metrics and schedule entries are hard-coded; don't present these as live database values.
-- `components/dashboard-shell.tsx` is a client component because its mobile navigation has local state.
+- `app/page.tsx` renders the public landing page and `components/fitbooking-prototype.tsx` coordinates the UI-only sign-in/sign-up flow and role workspaces. Dedicated browser routes are `/signin`, `/signup`, `/member`, `/trainer`, and `/admin`; the router checks the selected demo profile's role for UX only.
+- Sign-up is member-only. Seeded demo sign-ins are `alex` / `FitBooking123!` (member), `coach.tan` / `Coach@123` (trainer), and `FB-ADMIN-001` / `Admin@123` (admin). These public preview credentials are not real accounts and must not be reused in production.
+- `lib/demo-auth.ts` owns only the browser-local demo profile/session storage; `components/fitbooking-workspaces.tsx` contains sign-in/sign-up forms, trainer schedule/messages/client views, admin workflow views, and package details. The official mark is served from `public/fitbooking-kettlebell.png`.
+- The member area retains discovery, booking, membership, reviews, progress, and profile UI. Package cards open a detail view before selection. Trainer screens include schedule/availability interactions and a browser-local chat thread; admin screens include member/trainer/booking/package workflow previews.
+- All displayed metrics, schedules, packages, messages, booking/payment confirmations, admin controls, and role checks are demo content/interactions. They do not create API or database records; persisted demo profiles, the active demo session, and preview messages stay in the current browser's local storage.
+- Keep booking/payment/workflow interactions clearly labeled as demonstrations until confirmed FastAPI endpoints exist. Do not represent mock success, metrics, availability, profile state, or staff changes as live server data.
+- The legacy `components/dashboard-shell.tsx` remains in the repository, but the prototype uses its own member-facing navigation and mobile bottom bar.
 - `lib/database.ts` mirrors the fixed schema, but database-shaped types are not automatically safe API or UI models.
 - `lib/api-client.ts` currently uses a local API URL fallback. Add real features only against confirmed backend endpoints and response shapes.
