@@ -25,7 +25,8 @@ export type Screen =
   | "packageDetail" | "progress" | "profile" | "signin" | "signup"
   | "trainerHome" | "trainerSchedule" | "trainerMessages" | "messages" | "trainerClients"
   | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
-  | "adminTrainers" | "adminPackages" | "adminReports" | "adminSettings";
+  | "adminTrainers" | "adminLocations" | "adminCourses" | "adminPackages"
+  | "adminKpi" | "adminReports" | "adminAudit" | "adminSettings";
 
 const screenNames: Record<Screen, string> = {
   welcome: "Welcome",
@@ -54,8 +55,12 @@ const screenNames: Record<Screen, string> = {
   adminBookings: "Booking management",
   adminMembers: "Member management",
   adminTrainers: "Trainer management",
+  adminLocations: "Location management",
+  adminCourses: "Course management",
   adminPackages: "Package management",
+  adminKpi: "KPI management",
   adminReports: "Reports",
+  adminAudit: "Audit log",
   adminSettings: "Settings"
 };
 
@@ -65,7 +70,10 @@ const memberScreens: Screen[] = [
   "bookings", "packages", "packageDetail", "reviews", "progress", "profile", "messages"
 ];
 const trainerScreens: Screen[] = ["trainerHome", "trainerSchedule", "trainerMessages", "trainerClients", "trainerProgress"];
-const adminScreens: Screen[] = ["admin", "adminBookings", "adminMembers", "adminTrainers", "adminPackages", "adminReports", "adminSettings"];
+const adminScreens: Screen[] = [
+  "admin", "adminBookings", "adminMembers", "adminTrainers", "adminLocations",
+  "adminCourses", "adminPackages", "adminKpi", "adminReports", "adminAudit", "adminSettings"
+];
 
 function routeScreen(): Screen {
   const path = window.location.pathname;
