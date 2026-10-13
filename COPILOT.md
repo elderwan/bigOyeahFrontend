@@ -94,3 +94,12 @@ The database design document marks several workflow values as needing confirmati
 - The legacy `components/dashboard-shell.tsx` remains in the repository, but the prototype uses its own member-facing navigation and mobile bottom bar.
 - `lib/database.ts` mirrors the fixed schema, but database-shaped types are not automatically safe API or UI models.
 - `lib/api-client.ts` currently uses a local API URL fallback. Add real features only against confirmed backend endpoints and response shapes.
+
+### Member booking UI preview
+
+- `components/member-booking-picker.tsx` renders the member date/month/time selector. `lib/member-preview-data.ts` is its clearly labeled local-only adapter: it generates `CoachScheduleSlot` records from `CoachWeeklyTemplate` fixtures and returns exact SQL fields such as `booking_date`, `start_time`, and `end_time`. It does not read a live trainer schedule or call an API.
+- The picker previews only dates within 60 days, enforces a two-hour lead time, uses the coach's break interval and course duration to require all covered 10-minute slots to be `AVAILABLE`, and excludes overlapping local `PENDING`/`CONFIRMED` bookings. These values and fixture schedules are for UI review; never treat them as server-authoritative availability or validated business policy.
+- `components/fitbooking-prototype.tsx` contains the member Explore filters, My Bookings list/detail/review UI, and Progress timetable/30-day plan. Its booking, cancellation, payment, package-credit, and review interactions only update local preview state. No booking, payment, refund, or review is submitted or persisted to a backend.
+- Review inputs use `rating_professional`, `rating_communication`, `rating_punctuality`, `rating_effectiveness`, and `comment`; `avg_rating` is a read-only local preview calculation. Booking and review records use the interfaces from `lib/database.ts`; preserve their SQL column names and enum values.
+- Keep the existing Gym/Home place-selection controls and interaction unchanged until the trainer page is finished. The current booking section carries the follow-up TODO; do not redesign it as part of member picker work.
+- The current preview supplies sample membership levels and `discount_rate` values in `lib/member-preview-data.ts`; these are demo content, not authoritative membership policy.
