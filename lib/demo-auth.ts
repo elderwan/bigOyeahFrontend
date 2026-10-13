@@ -1,3 +1,14 @@
+import {
+  apiLogin,
+  apiRegister,
+  apiGetMemberProfile,
+  apiUpdateMemberProfile,
+  setAccessToken,
+  clearAccessToken,
+  getAccessToken,
+  ApiError
+} from "./api-client";
+
 export type DemoRole = "MEMBER" | "COACH" | "ADMIN";
 
 export interface DemoAccount {
@@ -15,6 +26,14 @@ export interface DemoAccount {
   fitness_goal: string | null;
   coach_no?: string;
   password_hash: string;
+  // Live API Profile fields
+  member_id?: number;
+  level_id?: number;
+  level_code?: string;
+  level_name?: string;
+  discount_rate?: number;
+  total_spend?: number;
+  is_live_backend?: boolean;
 }
 
 export type PublicDemoAccount = Omit<DemoAccount, "password_hash">;
@@ -237,11 +256,72 @@ export function saveDemoSession(account: PublicDemoAccount): void {
 
 export function clearDemoSession(): void {
   window.localStorage.removeItem(DEMO_SESSION_KEY);
+  clearAccessToken();
 }
 
 export async function registerDemoMember(
   input: Omit<DemoAccount, "user_id" | "role" | "status" | "password_hash" | "coach_no"> & { password: string }
 ): Promise<PublicDemoAccount> {
+  // 1. Attempt to register via live FitBooking API (POST /auth/register)
+  try {
+    const authData = await apiRegister({
+      username: input.username,
+      password: input.password,
+      display_name: input.display_name,
+      email: input.email,
+      phone: input.phone,
+      gender: input.gender,
+      birth_date: input.birth_date,
+      height_cm: input.height_cm,
+      weight_kg: input.weight_kg,
+      fitness_goal: input.fitness_goal
+    });
+
+    if (authData?.user) {
+      let liveProfile: Partial<PublicDemoAccount> = {};
+      try {
+        const profile = await apiGetMemberProfile();
+        if (profile) {
+          liveProfile = {
+            member_id: profile.member_id,
+            level_id: profile.level_id,
+            level_code: profile.level_code,
+            level_name: profile.level_name,
+            discount_rate: profile.discount_rate,
+            total_spend: profile.total_spend
+          };
+        }
+      } catch {
+        // Profile enrichment optional
+      }
+
+      const liveAccount: PublicDemoAccount = {
+        user_id: authData.user.user_id,
+        username: authData.user.username,
+        display_name: authData.user.display_name,
+        email: authData.user.email,
+        phone: authData.user.phone,
+        role: "MEMBER",
+        status: "ACTIVE",
+        gender: input.gender,
+        birth_date: input.birth_date,
+        height_cm: input.height_cm,
+        weight_kg: input.weight_kg,
+        fitness_goal: input.fitness_goal,
+        ...liveProfile,
+        is_live_backend: true
+      };
+
+      saveDemoSession(liveAccount);
+      return liveAccount;
+    }
+  } catch (err: any) {
+    if (err instanceof ApiError && !err.isNetworkError) {
+      throw err;
+    }
+  }
+
+  // 2. Fallback to local demo accounts
   const accounts = safeReadAccounts();
   const username = input.username.trim();
   const email = input.email.trim().toLowerCase();
@@ -285,6 +365,69 @@ export async function signInDemoUser(
   password: string,
   role: DemoRole
 ): Promise<PublicDemoAccount> {
+  // 1. Attempt to authenticate via live FitBooking API (POST /auth/login)
+  try {
+    const authData = await apiLogin({
+      username: identifier,
+      password
+    });
+
+    if (authData?.user) {
+      if (role && authData.user.role !== role) {
+        throw new Error(`This account role is "${authData.user.role}", but you selected "${role}".`);
+      }
+
+      let liveProfile: Partial<PublicDemoAccount> = {};
+      if (authData.user.role === "MEMBER") {
+        try {
+          const profile = await apiGetMemberProfile();
+          if (profile) {
+            liveProfile = {
+              member_id: profile.member_id,
+              gender: profile.gender,
+              birth_date: profile.birth_date,
+              height_cm: profile.height_cm,
+              weight_kg: profile.weight_kg,
+              fitness_goal: profile.fitness_goal,
+              level_id: profile.level_id,
+              level_code: profile.level_code,
+              level_name: profile.level_name,
+              discount_rate: profile.discount_rate,
+              total_spend: profile.total_spend
+            };
+          }
+        } catch {
+          // Profile enrichment optional
+        }
+      }
+
+      const liveAccount: PublicDemoAccount = {
+        user_id: authData.user.user_id,
+        username: authData.user.username,
+        display_name: authData.user.display_name,
+        email: authData.user.email,
+        phone: authData.user.phone,
+        role: authData.user.role,
+        status: "ACTIVE",
+        gender: liveProfile.gender ?? null,
+        birth_date: liveProfile.birth_date ?? null,
+        height_cm: liveProfile.height_cm ?? null,
+        weight_kg: liveProfile.weight_kg ?? null,
+        fitness_goal: liveProfile.fitness_goal ?? null,
+        ...liveProfile,
+        is_live_backend: true
+      };
+
+      saveDemoSession(liveAccount);
+      return liveAccount;
+    }
+  } catch (err: any) {
+    if (err instanceof ApiError && !err.isNetworkError) {
+      throw err;
+    }
+  }
+
+  // 2. Fallback to local demo accounts
   const accounts = safeReadAccounts();
   const normalizedIdentifier = identifier.trim().toLowerCase();
   const matchesIdentifier = (entry: { username: string; email: string; role: string }) =>
@@ -332,13 +475,54 @@ export function getLocalAccounts(): PublicDemoAccount[] {
   return safeReadAccounts().map(toPublicAccount);
 }
 
-export function updateDemoMember(
+export async function updateDemoMember(
   userId: number,
   changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date" | "gender" | "height_cm" | "weight_kg" | "fitness_goal">>
-): PublicDemoAccount {
+): Promise<PublicDemoAccount> {
+  const token = getAccessToken();
+  if (token) {
+    try {
+      const updatedProfile = await apiUpdateMemberProfile(changes);
+      const current = readDemoSession();
+      if (current) {
+        const next: PublicDemoAccount = {
+          ...current,
+          display_name: updatedProfile.display_name || current.display_name,
+          email: updatedProfile.email || current.email,
+          phone: updatedProfile.phone || current.phone,
+          gender: updatedProfile.gender !== undefined ? updatedProfile.gender : current.gender,
+          birth_date: updatedProfile.birth_date !== undefined ? updatedProfile.birth_date : current.birth_date,
+          height_cm: updatedProfile.height_cm !== undefined ? updatedProfile.height_cm : current.height_cm,
+          weight_kg: updatedProfile.weight_kg !== undefined ? updatedProfile.weight_kg : current.weight_kg,
+          fitness_goal: updatedProfile.fitness_goal !== undefined ? updatedProfile.fitness_goal : current.fitness_goal,
+          level_id: updatedProfile.level_id ?? current.level_id,
+          level_code: updatedProfile.level_code ?? current.level_code,
+          level_name: updatedProfile.level_name ?? current.level_name,
+          discount_rate: updatedProfile.discount_rate ?? current.discount_rate,
+          total_spend: updatedProfile.total_spend ?? current.total_spend,
+          is_live_backend: true
+        };
+        saveDemoSession(next);
+        return next;
+      }
+    } catch (err: any) {
+      if (err instanceof ApiError && !err.isNetworkError) {
+        throw err;
+      }
+    }
+  }
+
   const accounts = safeReadAccounts();
   const index = accounts.findIndex((account) => account.user_id === userId);
-  if (index < 0) throw new Error("This local member profile was not found. Sign in again and retry.");
+  if (index < 0) {
+    const current = readDemoSession();
+    if (current && current.user_id === userId) {
+      const next = { ...current, ...changes };
+      saveDemoSession(next);
+      return next;
+    }
+    throw new Error("This local member profile was not found. Sign in again and retry.");
+  }
   const updated: DemoAccount = { ...accounts[index], ...changes };
   updated.display_name = updated.display_name.trim();
   updated.email = updated.email.trim().toLowerCase();

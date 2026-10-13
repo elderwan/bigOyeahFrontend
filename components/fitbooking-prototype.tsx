@@ -16,6 +16,9 @@ import {
   updateDemoMember
 } from "@/lib/demo-auth";
 import {
+  apiGetMemberProfile, getAccessToken, ApiError
+} from "@/lib/api-client";
+import {
   MemberMessages, PackageDetailScreen, RoleWorkspace, SignInScreen, SignUpScreen
 } from "@/components/fitbooking-workspaces";
 import { MemberBookingPicker } from "@/components/member-booking-picker";
@@ -256,7 +259,45 @@ export function FitBookingPrototype() {
 
   useEffect(() => {
     try {
-      setAccount(readDemoSession());
+      const saved = readDemoSession();
+      setAccount(saved);
+      if (saved && saved.role === "MEMBER" && getAccessToken()) {
+        apiGetMemberProfile()
+          .then((profile) => {
+            setAccount((prev) => {
+              if (!prev) return prev;
+              const merged: PublicDemoAccount = {
+                ...prev,
+                display_name: profile.display_name,
+                email: profile.email,
+                phone: profile.phone,
+                gender: profile.gender,
+                birth_date: profile.birth_date,
+                height_cm: profile.height_cm,
+                weight_kg: profile.weight_kg,
+                fitness_goal: profile.fitness_goal,
+                member_id: profile.member_id,
+                level_id: profile.level_id,
+                level_code: profile.level_code,
+                level_name: profile.level_name,
+                discount_rate: profile.discount_rate,
+                total_spend: profile.total_spend,
+                is_live_backend: true
+              };
+              saveDemoSession(merged);
+              return merged;
+            });
+          })
+          .catch((err) => {
+            if (err instanceof ApiError && err.status === 401) {
+              clearDemoSession();
+              setAccount(null);
+              setScreen("signin");
+              if (typeof window !== "undefined") window.history.replaceState(null, "", "/signin");
+              setToast("Your session has expired. Please sign in again.");
+            }
+          });
+      }
     } catch (issue) {
       setToast(issue instanceof Error ? issue.message : "The saved browser profile could not be read.");
       setScreen("signin");
@@ -297,7 +338,8 @@ export function FitBookingPrototype() {
   const notify = (message: string) => setToast(message);
   const enterWorkspace = (nextAccount: PublicDemoAccount) => {
     setAccount(nextAccount);
-    const target: Screen = nextAccount.role === "ADMIN" ? "admin" : nextAccount.role === "COACH" ? "trainerHome" : "home";
+    // API Documentation rule: Navigate to /member#profile after member login
+    const target: Screen = nextAccount.role === "ADMIN" ? "admin" : nextAccount.role === "COACH" ? "trainerHome" : "profile";
     setScreen(target);
     window.history.pushState(null, "", routePath(target));
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -322,16 +364,17 @@ export function FitBookingPrototype() {
     const nextAccount = await registerDemoMember(details);
     saveDemoSession(nextAccount);
     enterWorkspace(nextAccount);
+    setToast("Account created successfully! Welcome to FitBooking.");
   };
-  const updateProfile = (changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date">>) => {
+  const updateProfile = async (changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date" | "gender" | "height_cm" | "weight_kg" | "fitness_goal">>) => {
     if (!account) return;
     try {
-      const updated = updateDemoMember(account.user_id, changes);
+      const updated = await updateDemoMember(account.user_id, changes);
       saveDemoSession(updated);
       setAccount(updated);
-      notify("Your profile details are saved in this browser.");
+      notify("Your profile details have been saved.");
     } catch (issue) {
-      notify(issue instanceof Error ? issue.message : "Your profile could not be saved in this browser.");
+      notify(issue instanceof Error ? issue.message : "Your profile could not be saved.");
     }
   };
   const toggleFavorite = (name: string) => setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
@@ -895,24 +938,184 @@ function ProfileScreen({ tab, setTab, notify, account, onSignOut, onSave }: {
   notify: (message: string) => void;
   account: PublicDemoAccount;
   onSignOut: () => void;
-  onSave: (changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date">>) => void;
+  onSave: (changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date" | "gender" | "height_cm" | "weight_kg" | "fitness_goal">>) => Promise<void>;
 }) {
   const [notifications, setNotifications] = useState(true);
   const [displayName, setDisplayName] = useState(account.display_name);
   const [email, setEmail] = useState(account.email);
   const [phone, setPhone] = useState(account.phone);
   const [birthDate, setBirthDate] = useState(account.birth_date || "");
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "OTHER" | "">(account.gender || "");
+  const [heightCm, setHeightCm] = useState(account.height_cm ? String(account.height_cm) : "");
+  const [weightKg, setWeightKg] = useState(account.weight_kg ? String(account.weight_kg) : "");
+  const [fitnessGoal, setFitnessGoal] = useState(account.fitness_goal || "");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
   const tabs = ["Personal information", "Membership", "Notifications", "Payment methods", "Payment history", "Help & support"];
+
+  const handleSavePersonal = async () => {
+    setFormError("");
+    const name = displayName.trim();
+    if (!name || name.length < 2) {
+      setFormError("Full name is required (at least 2 characters).");
+      return;
+    }
+    const emailTrim = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      setFormError("Please enter a valid email address.");
+      return;
+    }
+    const phoneTrim = phone.trim();
+    if (!/^(\+?[0-9\s\-()]{8,20})$/.test(phoneTrim)) {
+      setFormError("Please enter a valid phone number (at least 8 digits).");
+      return;
+    }
+
+    let h: number | null = null;
+    if (heightCm) {
+      const parsedH = Number(heightCm);
+      if (!Number.isFinite(parsedH) || parsedH < 40 || parsedH > 260) {
+        setFormError("Height must be a valid number between 40 and 260 cm.");
+        return;
+      }
+      h = parsedH;
+    }
+
+    let w: number | null = null;
+    if (weightKg) {
+      const parsedW = Number(weightKg);
+      if (!Number.isFinite(parsedW) || parsedW < 20 || parsedW > 350) {
+        setFormError("Weight must be a valid number between 20 and 350 kg.");
+        return;
+      }
+      w = parsedW;
+    }
+
+    setSaving(true);
+    try {
+      const changes: Partial<Pick<PublicDemoAccount, "display_name" | "email" | "phone" | "birth_date" | "gender" | "height_cm" | "weight_kg" | "fitness_goal">> = {};
+      if (name !== account.display_name) changes.display_name = name;
+      if (emailTrim !== account.email) changes.email = emailTrim;
+      if (phoneTrim !== account.phone) changes.phone = phoneTrim;
+      if ((birthDate || null) !== (account.birth_date || null)) changes.birth_date = birthDate || null;
+      const g = gender ? (gender as "MALE" | "FEMALE" | "OTHER") : null;
+      if (g !== (account.gender || null)) changes.gender = g;
+      if (h !== account.height_cm) changes.height_cm = h;
+      if (w !== account.weight_kg) changes.weight_kg = w;
+      const goal = fitnessGoal.trim() || null;
+      if (goal !== (account.fitness_goal || null)) changes.fitness_goal = goal;
+
+      if (Object.keys(changes).length === 0) {
+        notify("No changes to save.");
+        return;
+      }
+
+      await onSave(changes);
+    } catch (err: any) {
+      setFormError(err instanceof Error ? err.message : "Failed to update profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return <div className="content-wrap narrow-wrap"><PageHeading eyebrow="A LITTLE MORE ABOUT YOU" title="Your profile" detail="Keep your details and preferences up to date." />
-    <section className="profile-summary-card"><div className="member-avatar large">{account.display_name.slice(0, 1).toUpperCase()}</div><div><h2>{account.display_name}</h2><span className="profile-email">{account.email}</span><Pill className="gold-pill"><Award size={12} /> Member</Pill></div><button className="text-link" onClick={() => setTab("Personal information")}>Edit profile <ArrowRight size={14} /></button></section>
-    <div className="profile-settings-layout"><nav className="settings-menu">{tabs.map((item, index) => {
-      const icons = [UserRound, Award, Bell, CreditCard, Wallet, CircleHelp];
-      const Icon = icons[index];
-      return <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}><Icon size={17} />{item}<ChevronRight size={15} /></button>;
-    })}<button className="settings-signout" onClick={onSignOut}><LogOut size={17} /> Sign out</button></nav>
-      <section className="settings-detail-panel"><div className="section-title"><div><h2>{tab}</h2><p>Manage your FitBooking preferences.</p></div><button className="icon-button" aria-label="More settings"><MoreHorizontal size={19} /></button></div>
-        {tab === "Personal information" && <div className="settings-form"><label className="settings-field">Username<input value={account.username} readOnly /></label><label className="settings-field">Full name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={100} /></label><label className="settings-field">Email address<input value={email} type="email" onChange={(event) => setEmail(event.target.value)} maxLength={100} /></label><label className="settings-field">Phone number<input value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={20} /></label><label className="settings-field">Date of birth<input value={birthDate} type="date" onChange={(event) => setBirthDate(event.target.value)} /></label><PrimaryButton onClick={() => onSave({ display_name: displayName, email: email.trim().toLowerCase(), phone: phone.trim(), birth_date: birthDate || null })}>Save changes <Check size={15} /></PrimaryButton></div>}
-        {tab === "Membership" && <div className="setting-membership"><span className="membership-medal"><Trophy size={22} /></span><div><Pill className="gold-pill">GOLD MEMBER</Pill><h3>Every session gets you closer.</h3><p>10% off sessions · 7 package sessions remaining</p><div className="membership-track"><i /></div><small>฿2,150 to your next tier</small><button className="text-link" onClick={() => notify("Membership tiers shown in the Packages screen.")}>View membership benefits <ArrowRight size={14} /></button></div></div>}
+    <section className="profile-summary-card">
+      <div className="member-avatar large">{account.display_name.slice(0, 1).toUpperCase()}</div>
+      <div>
+        <h2>{account.display_name}</h2>
+        <span className="profile-email">{account.email}</span>
+        <Pill className="gold-pill"><Award size={12} /> {account.level_code || "MEMBER"}</Pill>
+      </div>
+      <button className="text-link" onClick={() => setTab("Personal information")}>Edit profile <ArrowRight size={14} /></button>
+    </section>
+    <div className="profile-settings-layout">
+      <nav className="settings-menu">{tabs.map((item, index) => {
+        const icons = [UserRound, Award, Bell, CreditCard, Wallet, CircleHelp];
+        const Icon = icons[index];
+        return <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}><Icon size={17} />{item}<ChevronRight size={15} /></button>;
+      })}<button className="settings-signout" onClick={onSignOut}><LogOut size={17} /> Sign out</button></nav>
+      <section className="settings-detail-panel">
+        <div className="section-title">
+          <div>
+            <h2>{tab}</h2>
+            <p>Manage your FitBooking preferences.</p>
+          </div>
+          <button className="icon-button" aria-label="More settings"><MoreHorizontal size={19} /></button>
+        </div>
+        {tab === "Personal information" && (
+          <div className="settings-form">
+            <label className="settings-field">
+              Username (read-only)
+              <input value={account.username} readOnly disabled className="input-readonly" />
+              <small className="field-hint">The username is permanent and cannot be modified via API.</small>
+            </label>
+            <div className="admin-form-grid">
+              <label className="settings-field">
+                Full name <span className="req-star">*</span>
+                <input value={displayName} onChange={(e) => { setDisplayName(e.target.value); setFormError(""); }} maxLength={100} />
+              </label>
+              <label className="settings-field">
+                Email address <span className="req-star">*</span>
+                <input value={email} type="email" onChange={(e) => { setEmail(e.target.value); setFormError(""); }} maxLength={100} />
+              </label>
+            </div>
+            <div className="admin-form-grid">
+              <label className="settings-field">
+                Phone number <span className="req-star">*</span>
+                <input value={phone} onChange={(e) => { setPhone(e.target.value); setFormError(""); }} maxLength={20} />
+              </label>
+              <label className="settings-field">
+                Gender
+                <select value={gender} onChange={(e) => { setGender(e.target.value as any); setFormError(""); }}>
+                  <option value="">Prefer not to say</option>
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+            </div>
+            <div className="admin-form-grid">
+              <label className="settings-field">
+                Date of birth
+                <input value={birthDate} type="date" onChange={(e) => { setBirthDate(e.target.value); setFormError(""); }} />
+              </label>
+              <label className="settings-field">
+                Height (cm)
+                <input value={heightCm} type="number" min="40" max="260" step="0.1" placeholder="e.g. 165.0" onChange={(e) => { setHeightCm(e.target.value); setFormError(""); }} />
+              </label>
+            </div>
+            <div className="admin-form-grid">
+              <label className="settings-field">
+                Weight (kg)
+                <input value={weightKg} type="number" min="20" max="350" step="0.1" placeholder="e.g. 58.0" onChange={(e) => { setWeightKg(e.target.value); setFormError(""); }} />
+              </label>
+              <label className="settings-field">
+                Fitness goal
+                <input value={fitnessGoal} maxLength={200} placeholder="What are you working toward?" onChange={(e) => { setFitnessGoal(e.target.value); setFormError(""); }} />
+              </label>
+            </div>
+            {formError && <p className="form-error" role="alert">{formError}</p>}
+            <PrimaryButton onClick={handleSavePersonal} disabled={saving}>
+              {saving ? "Saving changes…" : "Save changes"} <Check size={15} />
+            </PrimaryButton>
+          </div>
+        )}
+        {tab === "Membership" && (
+          <div className="setting-membership">
+            <span className="membership-medal"><Trophy size={22} /></span>
+            <div>
+              <Pill className="gold-pill">{account.level_code || "GOLD"} MEMBER</Pill>
+              <h3>{account.level_name || "Gold Member"}</h3>
+              <p>{Math.round((account.discount_rate || 0.1) * 100)}% off sessions · ฿{(account.total_spend || 7850).toLocaleString()} spent to date</p>
+              <div className="membership-track"><i /></div>
+              <small>Tier discount applied automatically on booking checkout</small>
+              <button className="text-link" onClick={() => notify("Membership tiers shown in the Packages screen.")}>
+                View membership benefits <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
         {tab === "Notifications" && <div className="notification-setting"><div><b>Session reminders</b><p>Get a note before your next training session.</p></div><button className={`toggle-switch ${notifications ? "on" : ""}`} onClick={() => setNotifications(!notifications)} aria-pressed={notifications} aria-label="Toggle session reminders"><i /></button></div>}
         {tab === "Payment methods" && <div className="saved-payment"><span className="payment-method-icon">◉</span><div><b>PromptPay</b><small>Connected · ending 4821</small></div><button className="text-link" onClick={() => notify("Payment method controls are a visual preview.")}>Manage</button></div>}
         {tab === "Payment history" && <div className="payment-history-list">{[["Apr 09, 2026", "Strength & Conditioning", "฿720"], ["Apr 02, 2026", "5 session package", "฿3,400"], ["Mar 26, 2026", "Mobility & Flexibility", "฿585"]].map(([day, item, amount]) => <div key={day}><span><b>{item}</b><small>{day} · Paid</small></span><strong>{amount}</strong></div>)}</div>}
