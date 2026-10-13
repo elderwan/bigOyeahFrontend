@@ -41,7 +41,28 @@ import type {
   PackageType
 } from "@/lib/database";
 
-import { apiCheckHealth, getApiBaseUrl, DEFAULT_API_BASE_URL } from "@/lib/api-client";
+import {
+  apiCheckHealth,
+  getApiBaseUrl,
+  DEFAULT_API_BASE_URL,
+  getAccessToken,
+  formatApiTime,
+  apiGetAdminDashboard,
+  apiGetAdminMembers,
+  apiUpdateMemberStatus,
+  apiGetAdminCoaches,
+  apiUpdateCoachStatus,
+  apiGetAdminBookings,
+  apiGetAdminKpi,
+  apiUpdateKpiRule,
+  apiGetGyms,
+  apiGetCourses,
+  apiGetPackagesCatalog,
+  apiUpdateLocationStatus,
+  apiUpdateCourseStatus,
+  apiUpdatePackageStatus,
+  apiGetAdminAuditLog
+} from "@/lib/api-client";
 
 type Navigate = (screen: string) => void;
 
@@ -91,8 +112,8 @@ export function SignInScreen({
 
   const fillDemo = (demoRole: DemoRole) => {
     setRole(demoRole);
-    setIdentifier(demoRole === "MEMBER" ? "alex" : demoRole === "COACH" ? "coach.tan" : "FB-ADMIN-001");
-    setPassword(demoRole === "MEMBER" ? "FitBooking123!" : demoRole === "COACH" ? "Coach@123" : "Admin@123");
+    setIdentifier(demoRole === "MEMBER" ? "alex.demo" : demoRole === "COACH" ? "tan.coach" : "admin.demo");
+    setPassword("DemoPass123!");
     setError("");
   };
 
@@ -154,8 +175,8 @@ export function SignInScreen({
           )}
         </div>
         <form className="auth-form" onSubmit={submit}>
-          <label className="settings-field" htmlFor="signin-identifier">{role === "ADMIN" ? "Admin ID or email" : "Username or email"}
-            <input id="signin-identifier" autoComplete="username" required value={identifier} onChange={(event) => { setIdentifier(event.target.value); setError(""); }} placeholder={role === "ADMIN" ? "FB-ADMIN-001" : "Your username or email"} />
+          <label className="settings-field" htmlFor="signin-identifier">{role === "ADMIN" ? "Admin username or email" : "Username or email"}
+            <input id="signin-identifier" autoComplete="username" required value={identifier} onChange={(event) => { setIdentifier(event.target.value); setError(""); }} placeholder={role === "ADMIN" ? "admin.demo" : role === "COACH" ? "tan.coach" : "alex.demo"} />
           </label>
           <label className="settings-field" htmlFor="signin-password">Password
             <input id="signin-password" autoComplete="current-password" type="password" required value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} placeholder="Enter your password" />
@@ -168,9 +189,9 @@ export function SignInScreen({
         </form>
         <div className="auth-divider"><span>OR TRY A DEMO PROFILE</span></div>
         <div className="auth-demo-list">
-          <button type="button" onClick={() => fillDemo("MEMBER")}><span className="demo-role-mark"><UsersRound size={15} /></span><span><b>Member preview</b><small>alex · FitBooking123!</small></span><ChevronRight size={16} /></button>
-          <button type="button" onClick={() => fillDemo("COACH")}><span className="demo-role-mark"><Dumbbell size={15} /></span><span><b>Trainer preview</b><small>coach.tan · Coach@123</small></span><ChevronRight size={16} /></button>
-          <button type="button" onClick={() => fillDemo("ADMIN")}><span className="demo-role-mark"><ShieldCheck size={15} /></span><span><b>Admin preview</b><small>FB-ADMIN-001 · Admin@123</small></span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => fillDemo("MEMBER")}><span className="demo-role-mark"><UsersRound size={15} /></span><span><b>Member preview</b><small>alex.demo · DemoPass123!</small></span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => fillDemo("COACH")}><span className="demo-role-mark"><Dumbbell size={15} /></span><span><b>Trainer preview</b><small>tan.coach · DemoPass123!</small></span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => fillDemo("ADMIN")}><span className="demo-role-mark"><ShieldCheck size={15} /></span><span><b>Admin preview</b><small>admin.demo · DemoPass123!</small></span><ChevronRight size={16} /></button>
         </div>
         <p className="auth-notice">Connected to FitBooking API (<code>{DEFAULT_API_BASE_URL}</code>) with automatic fallback to offline demo profiles.</p>
         <p className="auth-switch">New to FitBooking? <button className="text-link" onClick={() => onNavigate("signup")}>Create a member account</button></p>
@@ -632,6 +653,171 @@ function AdminContent({ active }: { active: string }) {
     setEditTarget(null);
   };
 
+  // Fetch live backend data if token is present
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+
+    let mounted = true;
+    Promise.allSettled([
+      apiGetAdminMembers(),
+      apiGetAdminCoaches(),
+      apiGetAdminBookings(),
+      apiGetGyms(),
+      apiGetCourses(),
+      apiGetPackagesCatalog(),
+      apiGetAdminKpi()
+    ]).then(([membersRes, coachesRes, bookingsRes, gymsRes, coursesRes, packagesRes, kpiRes]) => {
+      if (!mounted) return;
+
+      if (membersRes.status === "fulfilled" && membersRes.value?.items) {
+        setMembers(membersRes.value.items.map((m: any) => ({
+          id: `member-${m.user_id}`,
+          user_id: m.user_id,
+          member_id: m.member_id || m.user_id,
+          display_name: m.display_name,
+          username: m.username,
+          email: m.email,
+          phone: m.phone,
+          level_code: m.level_code || "BRONZE",
+          total_spend: Number(m.total_spend || 0),
+          status: m.status || "ACTIVE",
+          gender: m.gender || null,
+          birth_date: m.birth_date || null,
+          height_cm: m.height_cm ? Number(m.height_cm) : null,
+          weight_kg: m.weight_kg ? Number(m.weight_kg) : null,
+          fitness_goal: m.fitness_goal || null,
+          remaining_sessions: m.remaining_sessions || 0
+        })));
+      }
+
+      if (coachesRes.status === "fulfilled" && coachesRes.value?.items) {
+        setCoaches(coachesRes.value.items.map((c: any) => ({
+          id: `coach-${c.coach_id}`,
+          coach_id: c.coach_id,
+          coach_no: c.coach_no || String(c.coach_id),
+          user_id: c.user_id,
+          display_name: c.display_name,
+          username: c.username || c.email?.split("@")[0] || "",
+          email: c.email,
+          phone: c.phone,
+          coach_level: c.coach_level || "INTERMEDIATE",
+          status: c.status || "ACTIVE",
+          service_mode: c.service_mode || "BOTH",
+          break_interval: (c.break_interval || 10) as (10 | 20 | 30),
+          years_experience: c.years_experience || 0,
+          certifications: c.certifications || "",
+          bio: c.bio || "",
+          assigned_locations: c.assigned_locations || "Nimman Fitness Club",
+          courses_taught: c.courses_taught || "Strength & Conditioning",
+          hired_at: c.hired_at || "2020-04-01",
+          rating: Number(c.average_rating || 0)
+        })));
+      }
+
+      if (bookingsRes.status === "fulfilled" && bookingsRes.value?.items) {
+        setBookings(bookingsRes.value.items.map((b: any) => ({
+          id: `booking-${b.booking_id}`,
+          booking_id: b.booking_id,
+          member_name: b.member_name || "Member",
+          coach_name: b.coach_name || "Coach",
+          course_name: b.course_name || "Course",
+          service_mode: b.service_mode || "GYM",
+          gym_name: b.gym_name || null,
+          service_district: b.service_district || null,
+          service_address: b.service_address || null,
+          booking_date: String(b.booking_date),
+          start_time: formatApiTime(b.start_time),
+          end_time: formatApiTime(b.end_time),
+          duration_minutes: b.duration_minutes || 60,
+          break_minutes: b.break_minutes || 10,
+          price: Number(b.price || 0),
+          status: b.status || "CONFIRMED",
+          cancel_reason: b.cancel_reason,
+          cancelled_by: b.cancelled_by
+        })));
+      }
+
+      if (gymsRes.status === "fulfilled" && Array.isArray(gymsRes.value)) {
+        setLocations(gymsRes.value.map((l: any) => ({
+          id: `location-${l.gym_id}`,
+          gym_id: l.gym_id,
+          gym_name: l.gym_name,
+          address: l.address,
+          district: l.district,
+          phone: l.phone,
+          facilities: l.facilities || "",
+          opening_time: formatApiTime(l.opening_time),
+          closing_time: formatApiTime(l.closing_time),
+          latitude: Number(l.latitude || 0),
+          longitude: Number(l.longitude || 0),
+          is_active: l.is_active ?? 1,
+          features: l.facilities || ""
+        })));
+      }
+
+      if (coursesRes.status === "fulfilled" && Array.isArray(coursesRes.value)) {
+        setCourses(coursesRes.value.map((c: any) => ({
+          id: `course-${c.course_id}`,
+          course_id: c.course_id,
+          course_name: c.course_name,
+          description: c.description || "",
+          difficulty: c.difficulty || "INTERMEDIATE",
+          default_duration: c.default_duration || 60,
+          equipment: c.equipment || "Standard fitness equipment",
+          is_active: c.is_active ?? 1,
+          assigned_coaches: "Coach Tan, Coach May"
+        })));
+      }
+
+      if (packagesRes.status === "fulfilled" && Array.isArray(packagesRes.value)) {
+        setPackages(packagesRes.value.map((p: any) => ({
+          id: `package-${p.package_id || p.package_type}`,
+          package_type: p.package_type,
+          name: p.package_name || `${p.package_type} Sessions`,
+          paid_sessions: p.package_type === "5+1" ? 5 : p.package_type === "20+7" ? 20 : 10,
+          bonus_sessions: p.package_type === "5+1" ? 1 : p.package_type === "20+7" ? 7 : 3,
+          total_sessions: p.total_sessions || (p.package_type === "5+1" ? 6 : p.package_type === "20+7" ? 27 : 13),
+          price: Number(p.price || 0),
+          validity_days: p.validity_days || 180,
+          description: p.description || `${p.total_sessions || p.package_type} sessions package`,
+          terms: "Choose your own verified coach. Valid for 180 days.",
+          status: (p.is_active === 0 ? "Paused" : "Available") as "Available" | "Paused"
+        })));
+      }
+
+      if (kpiRes.status === "fulfilled" && kpiRes.value?.kpi_rules) {
+        setRules(kpiRes.value.kpi_rules.map((r: any) => ({
+          id: `rule-${r.coach_level.toLowerCase()}`,
+          level: r.coach_level,
+          hours: Number(r.min_monthly_hours),
+          rating: Number(r.min_avg_rating),
+          retention: Number(r.min_retention_rate)
+        })));
+        if (kpiRes.value.records) {
+          setKpiRecords(kpiRes.value.records.map((rec: any) => ({
+            id: `kpi-${rec.kpi_record_id}`,
+            coach: rec.coach_name,
+            level: rec.coach_level,
+            month: "October 2026",
+            hours: Number(rec.total_hours),
+            sessions: rec.completed_sessions,
+            rating: Number(rec.avg_rating),
+            retention: Number(rec.retention_rate),
+            target_hours: Number(rec.target_hours),
+            target_rating: Number(rec.target_avg_rating),
+            target_retention: Number(rec.target_retention_rate),
+            achieved: Boolean(rec.is_achieved)
+          })));
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const handleToggleBooking = (id: string) => {
     setBookings((prev) => prev.map((b) => {
       if (b.id !== id) return b;
@@ -642,44 +828,54 @@ function AdminContent({ active }: { active: string }) {
   };
 
   const handleToggleMember = (id: string) => {
-    setMembers((prev) => prev.map((m) => {
-      if (m.id !== id) return m;
-      return { ...m, status: m.status === "ACTIVE" ? "DISABLED" : "ACTIVE" };
-    }));
-    setNotice("Member account status updated.");
+    const target = members.find((m) => m.id === id);
+    if (!target) return;
+    const nextStatus = target.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    setMembers((prev) => prev.map((m) => m.id === id ? { ...m, status: nextStatus } : m));
+    apiUpdateMemberStatus(target.user_id, nextStatus)
+      .then(() => setNotice(`Member account status saved to live backend (${nextStatus}).`))
+      .catch((err) => setNotice(`Member status: ${err.message}`));
   };
 
   const handleToggleCoach = (id: string) => {
-    setCoaches((prev) => prev.map((c) => {
-      if (c.id !== id) return c;
-      const next = c.status === "ACTIVE" ? "ON_LEAVE" : "ACTIVE";
-      return { ...c, status: next };
-    }));
-    setNotice("Trainer status updated.");
+    const target = coaches.find((c) => c.id === id);
+    if (!target) return;
+    const nextStatus = target.status === "ACTIVE" ? "ON_LEAVE" : "ACTIVE";
+    setCoaches((prev) => prev.map((c) => c.id === id ? { ...c, status: nextStatus } : c));
+    apiUpdateCoachStatus(target.coach_id, nextStatus)
+      .then(() => setNotice(`Trainer status saved to live backend (${nextStatus}).`))
+      .catch((err) => setNotice(`Trainer status: ${err.message}`));
   };
 
   const handleToggleLocation = (id: string) => {
-    setLocations((prev) => prev.map((l) => {
-      if (l.id !== id) return l;
-      return { ...l, is_active: l.is_active === 1 ? 0 : 1 };
-    }));
-    setNotice("Location active status toggled.");
+    const target = locations.find((l) => l.id === id);
+    if (!target) return;
+    const nextActive = target.is_active === 1 ? 0 : 1;
+    setLocations((prev) => prev.map((l) => l.id === id ? { ...l, is_active: nextActive } : l));
+    apiUpdateLocationStatus(target.gym_id, nextActive)
+      .then(() => setNotice(`Location status saved to live backend (${nextActive === 1 ? "Active" : "Paused"}).`))
+      .catch((err) => setNotice(`Location status: ${err.message}`));
   };
 
   const handleToggleCourse = (id: string) => {
-    setCourses((prev) => prev.map((c) => {
-      if (c.id !== id) return c;
-      return { ...c, is_active: c.is_active === 1 ? 0 : 1 };
-    }));
-    setNotice("Course catalogue status updated.");
+    const target = courses.find((c) => c.id === id);
+    if (!target) return;
+    const nextActive = target.is_active === 1 ? 0 : 1;
+    setCourses((prev) => prev.map((c) => c.id === id ? { ...c, is_active: nextActive } : c));
+    apiUpdateCourseStatus(target.course_id, nextActive)
+      .then(() => setNotice(`Course status saved to live backend (${nextActive === 1 ? "Available" : "Draft"}).`))
+      .catch((err) => setNotice(`Course status: ${err.message}`));
   };
 
   const handleTogglePackage = (id: string) => {
-    setPackages((prev) => prev.map((p) => {
-      if (p.id !== id) return p;
-      return { ...p, status: p.status === "Available" ? "Paused" : "Available" };
-    }));
-    setNotice("Package catalogue status updated.");
+    const target = packages.find((p) => p.id === id);
+    if (!target) return;
+    const nextStatus = target.status === "Available" ? "Paused" : "Available";
+    const nextActive = nextStatus === "Available" ? 1 : 0;
+    setPackages((prev) => prev.map((p) => p.id === id ? { ...p, status: nextStatus } : p));
+    apiUpdatePackageStatus(target.package_type, nextActive)
+      .then(() => setNotice(`Package catalog status saved to live backend (${nextStatus}).`))
+      .catch((err) => setNotice(`Package status: ${err.message}`));
   };
 
   const recalculateKpiSnapshots = () => {
@@ -939,8 +1135,58 @@ function AdminReports({ onBuild }: { onBuild: () => void }) {
 }
 
 function AdminAudit({ onFilter }: { onFilter: () => void }) {
-  const events = [["Admin FitBooking", "Updated KPI rule", "kpi_rule · ADVANCED", "2 min ago"], ["System", "Generated monthly snapshot", "coach_kpi_record · April 2026", "18 min ago"], ["Admin FitBooking", "Paused location", "gym · Hang Dong Training Room", "42 min ago"], ["Coach Tan", "Completed booking", "booking · #24016", "1 hr ago"]];
-  return <section className="workspace-panel admin-audit-panel"><div className="section-title"><div><h2>Audit log</h2><p>Important changes from audit_log, newest first.</p></div><button className="button button-outline" onClick={onFilter}><Filter size={14} /> Filter events</button></div><div className="admin-audit-list">{events.map(([actor, action, entity, time]) => <div className="admin-audit-row" key={`${actor}-${time}`}><span className="admin-audit-mark"><ClipboardList size={15} /></span><span><b>{action}</b><small>{actor} · {entity}</small></span><time>{time}</time><button className="icon-button" aria-label={`Open ${action} event`}><MoreHorizontal size={16} /></button></div>)}</div><p className="auth-notice">Audit entries are illustrative. The final API should keep entity type, entity id, actor, detail JSON, and created_at together.</p></section>;
+  const [liveLogs, setLiveLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (getAccessToken()) {
+      apiGetAdminAuditLog().then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setLiveLogs(data);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  const demoEvents = [
+    ["Admin FitBooking", "Updated KPI rule", "kpi_rule · ADVANCED", "2 min ago"],
+    ["System", "Generated monthly snapshot", "coach_kpi_record · April 2026", "18 min ago"],
+    ["Admin FitBooking", "Paused location", "gym · Hang Dong Training Room", "42 min ago"],
+    ["Coach Tan", "Completed booking", "booking · #24016", "1 hr ago"]
+  ];
+
+  return <section className="workspace-panel admin-audit-panel">
+    <div className="section-title">
+      <div>
+        <h2>Audit log</h2>
+        <p>Important changes from audit_log, newest first.</p>
+      </div>
+      <button className="button button-outline" onClick={onFilter}><Filter size={14} /> Filter events</button>
+    </div>
+    <div className="admin-audit-list">
+      {liveLogs.length > 0 ? (
+        liveLogs.map((log) => (
+          <div className="admin-audit-row" key={log.log_id}>
+            <span className="admin-audit-mark"><ClipboardList size={15} /></span>
+            <span>
+              <b>{log.action}</b>
+              <small>{log.entity_type} #{log.entity_id} · By {log.username || `User #${log.user_id}`}</small>
+            </span>
+            <time>{log.created_at ? log.created_at.replace("T", " ") : ""}</time>
+          </div>
+        ))
+      ) : (
+        demoEvents.map(([actor, action, entity, time]) => (
+          <div className="admin-audit-row" key={`${actor}-${time}`}>
+            <span className="admin-audit-mark"><ClipboardList size={15} /></span>
+            <span><b>{action}</b><small>{actor} · {entity}</small></span>
+            <time>{time}</time>
+            <button className="icon-button" aria-label={`Open ${action} event`}><MoreHorizontal size={16} /></button>
+          </div>
+        ))
+      )}
+    </div>
+    <p className="auth-notice">{liveLogs.length > 0 ? "Showing live database audit log entries from backend table `audit_log`." : "Audit entries are illustrative. The final API should keep entity type, entity id, actor, detail JSON, and created_at together."}</p>
+  </section>;
 }
 
 function AdminSettings({ status, onToggle }: { status: Record<string, AdminStatus>; onToggle: (id: string, value: AdminStatus) => void }) {

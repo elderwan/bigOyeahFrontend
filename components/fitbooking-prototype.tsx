@@ -16,7 +16,13 @@ import {
   updateDemoMember
 } from "@/lib/demo-auth";
 import {
-  apiGetMemberProfile, getAccessToken, ApiError
+  apiGetMemberProfile,
+  apiGetMemberBookings,
+  apiCancelBooking,
+  apiCreateReview,
+  getAccessToken,
+  formatApiTime,
+  ApiError
 } from "@/lib/api-client";
 import {
   MemberMessages, PackageDetailScreen, RoleWorkspace, SignInScreen, SignUpScreen
@@ -298,6 +304,109 @@ export function FitBookingPrototype() {
               setToast("Your session has expired. Please sign in again.");
             }
           });
+
+        apiGetMemberBookings().then((bookingsList) => {
+          if (Array.isArray(bookingsList) && bookingsList.length > 0) {
+            setPreviewBookings(bookingsList.map((b: any, index: number) => {
+              const bookingDate = String(b.booking_date);
+              const startTime = formatApiTime(b.start_time);
+              const endTime = formatApiTime(b.end_time);
+              return {
+                booking: {
+                  booking_id: b.booking_id,
+                  member_id: b.member_id || 1,
+                  coach_id: b.coach_id || 1,
+                  course_id: b.course_id || 1,
+                  gym_id: b.gym_id || 1,
+                  package_id: b.package_id || null,
+                  booking_date: bookingDate,
+                  start_time: startTime,
+                  end_time: endTime,
+                  duration_minutes: b.duration_minutes || 60,
+                  break_minutes: b.break_minutes || 10,
+                  service_mode: b.service_mode || "GYM",
+                  service_district: b.service_district || null,
+                  service_address: b.service_address || null,
+                  price: Number(b.price || 800),
+                  status: b.status || "CONFIRMED",
+                  expires_at: b.expires_at || null,
+                  cancelled_by: b.cancelled_by || null,
+                  cancel_reason: b.cancel_reason || null,
+                  cancelled_at: b.cancelled_at || null,
+                  completed_at: b.completed_at || null,
+                  created_at: b.created_at || new Date().toISOString(),
+                  updated_at: b.updated_at || new Date().toISOString()
+                },
+                course: {
+                  course_id: b.course_id || 1,
+                  course_name: b.course_name || "Strength & Conditioning",
+                  description: "Custom session with coach",
+                  difficulty: "INTERMEDIATE",
+                  default_duration: b.duration_minutes || 60,
+                  equipment: "Standard weights",
+                  is_active: 1,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                },
+                coach: {
+                  coach_id: b.coach_id || 1,
+                  coach_no: "1001",
+                  user_id: 3,
+                  avatar_url: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61",
+                  coach_level: "ADVANCED",
+                  bio: "Dedicated strength and conditioning coach",
+                  service_mode: b.service_mode || "BOTH",
+                  years_experience: 6,
+                  certifications: "NASM-CPT",
+                  break_interval: 10,
+                  status: "ACTIVE",
+                  hired_at: "2020-04-01",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                },
+                display_name: b.coach_name || "Tan Chaiyaporn",
+                gym: {
+                  gym_id: b.gym_id || 1,
+                  gym_name: b.gym_name || "Nimman Fitness Club",
+                  address: "Nimman Soi 9, Suthep, Mueang Chiang Mai",
+                  district: "NIMMAN",
+                  phone: "+6653001001",
+                  facilities: "Full weights, lockers, showers",
+                  opening_time: "06:00:00",
+                  closing_time: "22:00:00",
+                  latitude: 18.7961,
+                  longitude: 98.9673,
+                  is_active: 1,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                },
+                orders: [
+                  {
+                    order_id: 1000 + index,
+                    order_no: `ORD-${b.booking_id}`,
+                    booking_id: b.booking_id,
+                    package_id: null,
+                    order_type: "BOOKING",
+                    total_amount: Number(b.price || 800),
+                    discount: 0,
+                    final_amount: Number(b.price || 800),
+                    payment_method: "PROMPTPAY",
+                    payment_status: b.status === "CONFIRMED" || b.status === "COMPLETED" ? "PAID" : "UNPAID",
+                    payment_time: b.created_at || new Date().toISOString(),
+                    refunded_at: b.cancelled_at || null,
+                    created_at: b.created_at || new Date().toISOString(),
+                    updated_at: b.updated_at || new Date().toISOString()
+                  }
+                ],
+                member_package: null,
+                review_coach: null,
+                ui: {
+                  coach_image: "photo-1583454110551-21f2fa2afe61"
+                }
+              };
+            }));
+          }
+        }).catch(() => {});
       }
     } catch (issue) {
       setToast(issue instanceof Error ? issue.message : "The saved browser profile could not be read.");
@@ -395,7 +504,22 @@ export function FitBookingPrototype() {
     };
     setPreviewBookings((current) => current.map((entry) => entry.booking.booking_id === item.booking.booking_id ? { ...entry, review_coach } : entry));
     setSelectedBooking((current) => current?.booking.booking_id === item.booking.booking_id ? { ...current, review_coach } : current);
-    notify("Your review is saved in this local preview.");
+    if (getAccessToken()) {
+      apiCreateReview({
+        booking_id: item.booking.booking_id,
+        rating_professional: reviewFields.rating_professional,
+        rating_communication: reviewFields.rating_communication,
+        rating_punctuality: reviewFields.rating_punctuality,
+        rating_effectiveness: reviewFields.rating_effectiveness,
+        comment: reviewFields.comment || undefined
+      }).then(() => {
+        notify("Your review has been saved to the database.");
+      }).catch((err) => {
+        notify(`Review notice: ${err.message}`);
+      });
+    } else {
+      notify("Your review is saved in this local preview.");
+    }
   };
   const cancelMemberBooking = (item: MemberPreviewBooking, cancel_reason: string) => {
     const now = new Date();
@@ -423,7 +547,17 @@ export function FitBookingPrototype() {
     };
     setPreviewBookings((current) => current.map((entry) => entry.booking.booking_id === item.booking.booking_id ? updatedItem : entry));
     setSelectedBooking(updatedItem);
-    notify(freeCancel ? "Session cancelled. The preview reflects a full refund." : "Session cancelled. This preview reflects the no-refund window.");
+    if (getAccessToken()) {
+      apiCancelBooking(item.booking.booking_id, cancel_reason)
+        .then(() => {
+          notify(freeCancel ? "Session cancelled and updated on the backend. Full refund processed." : "Session cancelled and updated on the backend.");
+        })
+        .catch((err) => {
+          notify(`Cancellation: ${err.message}`);
+        });
+    } else {
+      notify(freeCancel ? "Session cancelled. The preview reflects a full refund." : "Session cancelled. This preview reflects the no-refund window.");
+    }
   };
   const selectCoachListing = (selected_coach_id: number, selected_course_id: number) => {
     const listing = preview_coach_listings.find((item) => item.coach.coach_id === selected_coach_id);

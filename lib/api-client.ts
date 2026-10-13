@@ -12,7 +12,7 @@
  *   4. PATCH /members/me     -> Update member profile fields
  */
 
-export const DEFAULT_API_BASE_URL = "http://10.195.90.63:8000/api/v1";
+export const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1";
 export const TOKEN_STORAGE_KEY = "fitbooking_access_token";
 export const API_URL_STORAGE_KEY = "fitbooking_custom_api_url";
 
@@ -401,8 +401,8 @@ export async function apiCheckHealth(): Promise<{ online: boolean; baseUrl: stri
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     // Ping base url or swagger or login endpoint
-    const response = await fetch(`${baseUrl}/auth/login`, {
-      method: "OPTIONS",
+    const response = await fetch(`${baseUrl}/health`, {
+      method: "GET",
       signal: controller.signal
     }).catch(() => null);
     clearTimeout(timeout);
@@ -411,3 +411,383 @@ export async function apiCheckHealth(): Promise<{ online: boolean; baseUrl: stri
     return { online: false, baseUrl, error: err.message };
   }
 }
+
+/**
+ * Format API duration string (e.g. PT9H10M, PT8H) or time (09:10:00) into HH:MM
+ */
+export function formatApiTime(timeStr: string | null | undefined): string {
+  if (!timeStr) return "";
+  if (timeStr.startsWith("PT")) {
+    const hoursMatch = timeStr.match(/(\d+)H/);
+    const minutesMatch = timeStr.match(/(\d+)M/);
+    const h = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
+    const m = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+  const parts = timeStr.split(":");
+  if (parts.length >= 2) {
+    return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+  }
+  return timeStr;
+}
+
+// -------------------------------------------------------------
+// Member Endpoints
+// -------------------------------------------------------------
+
+export async function apiGetMemberDashboard(): Promise<any> {
+  const res = await apiFetch<any>("/members/me/dashboard", { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiGetMemberBookings(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/members/me/bookings", { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiGetMemberBookingDetail(bookingId: number): Promise<any> {
+  const res = await apiFetch<any>(`/members/me/bookings/${bookingId}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiCancelBooking(bookingId: number, cancelReason?: string): Promise<any> {
+  const res = await apiFetch<any>(`/members/me/bookings/${bookingId}/cancel`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({ cancel_reason: cancelReason || "Cancelled by member" })
+  });
+  return res.data;
+}
+
+export async function apiGetMemberPackages(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/members/me/packages", { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiPurchasePackage(payload: { package_type: string; gym_id?: number }): Promise<any> {
+  const res = await apiFetch<any>("/members/me/packages/purchase", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiGetMemberProgress(): Promise<any> {
+  const res = await apiFetch<any>("/members/me/progress", { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateMemberProgress(payload: any): Promise<any> {
+  const res = await apiFetch<any>("/members/me/progress", {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiGetMemberPaymentHistory(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/members/me/payment-history", { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiGetMemberPaymentMethods(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/members/me/payment-methods", { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiAddPaymentMethod(payload: {
+  provider: string;
+  card_token: string;
+  last4: string;
+  card_brand: string;
+  exp_month: number;
+  exp_year: number;
+  is_default?: boolean;
+}): Promise<any> {
+  const res = await apiFetch<any>("/members/me/payment-methods", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeletePaymentMethod(id: number): Promise<void> {
+  await apiFetch<void>(`/members/me/payment-methods/${id}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+}
+
+export async function apiGetMemberMessages(otherUserId?: number): Promise<any[]> {
+  const query = otherUserId ? `?other_user_id=${otherUserId}` : "";
+  const res = await apiFetch<any[]>(`/members/me/messages${query}`, { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiSendMessage(payload: { receiver_id: number; content: string }): Promise<any> {
+  const res = await apiFetch<any>("/members/me/messages", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiCreateBooking(payload: {
+  coach_id: number;
+  course_id: number;
+  gym_id?: number | null;
+  package_id?: number | null;
+  booking_date: string;
+  start_time: string;
+  duration_minutes: number;
+  break_minutes: number;
+  service_mode: "GYM" | "HOME";
+  service_district?: string | null;
+  service_address?: string | null;
+  price: number;
+}): Promise<any> {
+  const res = await apiFetch<any>("/bookings", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiCreateReview(payload: {
+  booking_id: number;
+  rating_professional: number;
+  rating_communication: number;
+  rating_punctuality: number;
+  rating_effectiveness: number;
+  comment?: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/members/me/reviews", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Catalog Endpoints
+// -------------------------------------------------------------
+
+export async function apiGetGyms(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/gyms");
+  return res.data || [];
+}
+
+export async function apiGetCourses(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/courses");
+  return res.data || [];
+}
+
+export async function apiGetPackagesCatalog(): Promise<any[]> {
+  const res = await apiFetch<any[]>("/packages");
+  return res.data || [];
+}
+
+export async function apiGetCoaches(params?: {
+  search?: string;
+  district?: string;
+  course_id?: number;
+  service_mode?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<any> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.district) searchParams.append("district", params.district);
+  if (params?.course_id) searchParams.append("course_id", String(params.course_id));
+  if (params?.service_mode) searchParams.append("service_mode", params.service_mode);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+
+  const query = searchParams.toString();
+  const res = await apiFetch<any>(`/coaches${query ? `?${query}` : ""}`);
+  return res.data;
+}
+
+export async function apiGetCoachProfile(coachId: number): Promise<any> {
+  const res = await apiFetch<any>(`/coaches/${coachId}/profile`);
+  return res.data;
+}
+
+export async function apiGetCoachScheduleSlots(coachId: number, startAt: string, endAt: string): Promise<any[]> {
+  const params = new URLSearchParams({ start_at: startAt, end_at: endAt });
+  const res = await apiFetch<any[]>(`/coaches/${coachId}/schedule/slots?${params}`);
+  return res.data || [];
+}
+
+// -------------------------------------------------------------
+// Coach Endpoints
+// -------------------------------------------------------------
+
+export async function apiUpdateCoachProfile(payload: {
+  display_name?: string;
+  email?: string;
+  phone?: string;
+  bio?: string;
+  avatar_url?: string;
+  service_mode?: string;
+  break_interval?: number;
+}): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me", {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Endpoints
+// -------------------------------------------------------------
+
+export async function apiGetAdminDashboard(days: number = 30): Promise<any> {
+  const res = await apiFetch<any>(`/admin/dashboard?days=${days}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiGetAdminAuditLog(limit: number = 50): Promise<any[]> {
+  const res = await apiFetch<any[]>(`/admin/audit-log?limit=${limit}`, { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiGetAdminMembers(params?: {
+  search?: string;
+  status?: string;
+  level_code?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<any> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.level_code) searchParams.append("level_code", params.level_code);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+
+  const query = searchParams.toString();
+  const res = await apiFetch<any>(`/admin/members${query ? `?${query}` : ""}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateMemberStatus(userId: number, status: "ACTIVE" | "DISABLED"): Promise<any> {
+  const res = await apiFetch<any>(`/admin/members/${userId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ status })
+  });
+  return res.data;
+}
+
+export async function apiGetAdminCoaches(params?: {
+  search?: string;
+  status?: string;
+  coach_level?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<any> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append("search", params.search);
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.coach_level) searchParams.append("coach_level", params.coach_level);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+
+  const query = searchParams.toString();
+  const res = await apiFetch<any>(`/admin/coaches${query ? `?${query}` : ""}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateCoachStatus(coachId: number, status: "ACTIVE" | "ON_LEAVE" | "RESIGNED"): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ status })
+  });
+  return res.data;
+}
+
+export async function apiGetAdminBookings(params?: {
+  status?: string;
+  coach_id?: number;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<any> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.append("status", params.status);
+  if (params?.coach_id) searchParams.append("coach_id", String(params.coach_id));
+  if (params?.date_from) searchParams.append("date_from", params.date_from);
+  if (params?.date_to) searchParams.append("date_to", params.date_to);
+  if (params?.page) searchParams.append("page", String(params.page));
+  if (params?.page_size) searchParams.append("page_size", String(params.page_size));
+
+  const query = searchParams.toString();
+  const res = await apiFetch<any>(`/admin/bookings${query ? `?${query}` : ""}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiGetAdminKpi(year?: number, month?: number): Promise<any> {
+  const searchParams = new URLSearchParams();
+  if (year) searchParams.append("year", String(year));
+  if (month) searchParams.append("month", String(month));
+  const query = searchParams.toString();
+  const res = await apiFetch<any>(`/admin/kpi${query ? `?${query}` : ""}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateKpiRule(
+  coachLevel: string,
+  payload: { min_monthly_hours: number; min_avg_rating: number; min_retention_rate: number }
+): Promise<any> {
+  const res = await apiFetch<any>(`/admin/kpi/rules/${coachLevel}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiGetAdminRevenue(days: number = 30): Promise<any> {
+  const res = await apiFetch<any>(`/admin/revenue?days=${days}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateLocationStatus(gymId: number, isActive: number | boolean): Promise<any> {
+  const res = await apiFetch<any>(`/admin/locations/${gymId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+
+export async function apiUpdateCourseStatus(courseId: number, isActive: number | boolean): Promise<any> {
+  const res = await apiFetch<any>(`/admin/courses/${courseId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+
+export async function apiUpdatePackageStatus(packageType: string, isActive: number | boolean): Promise<any> {
+  const encoded = encodeURIComponent(packageType);
+  const res = await apiFetch<any>(`/admin/packages/${encoded}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+

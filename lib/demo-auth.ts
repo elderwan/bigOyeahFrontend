@@ -44,6 +44,47 @@ export const DEMO_MESSAGES_KEY = "fitbooking.demo.messages.v1";
 
 const seededCredentials = [
   {
+    username: "alex.demo",
+    display_name: "Alex Morgan",
+    email: "alex.demo@example.com",
+    phone: "+66812345678",
+    role: "MEMBER",
+    password: "DemoPass123!",
+    gender: "MALE",
+    birth_date: "1996-06-14",
+    height_cm: 175,
+    weight_kg: 68,
+    fitness_goal: "Build muscle and improve strength"
+  },
+  {
+    username: "tan.coach",
+    display_name: "Tan Chaiyaporn",
+    email: "tan.coach@example.com",
+    phone: "+66812345680",
+    role: "COACH",
+    coach_no: "1001",
+    password: "DemoPass123!",
+    gender: "MALE",
+    birth_date: "1990-05-18",
+    height_cm: 178,
+    weight_kg: 76,
+    fitness_goal: null
+  },
+  {
+    username: "admin.demo",
+    display_name: "FitBooking Admin",
+    email: "admin.demo@example.com",
+    phone: "+66812345682",
+    role: "ADMIN",
+    password: "DemoPass123!",
+    gender: null,
+    birth_date: null,
+    height_cm: null,
+    weight_kg: null,
+    fitness_goal: null
+  },
+  // Legacy aliases
+  {
     username: "alex",
     display_name: "Alex Morgan",
     email: "alex.morgan@example.com",
