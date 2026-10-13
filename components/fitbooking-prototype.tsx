@@ -18,13 +18,20 @@ import {
 import {
   MemberMessages, PackageDetailScreen, RoleWorkspace, SignInScreen, SignUpScreen
 } from "@/components/fitbooking-workspaces";
+import { MemberBookingPicker } from "@/components/member-booking-picker";
+import {
+  MemberPreviewBooking, preview_coach_courses, preview_coach_listings, preview_courses, preview_member_bookings,
+  dateNow, formatBookingDate, dateOffset, weekdayForDate, preview_membership_levels
+} from "@/lib/member-preview-data";
+import { MembershipLevel, PackageType, PaymentMethod, ReviewCoach } from "@/lib/database";
+import { bookingStatusClasses, labels } from "@/lib/labels";
 
 export type Screen =
   | "welcome" | "home" | "explore" | "coach" | "courses" | "booking"
   | "checkout" | "success" | "bookings" | "packages" | "reviews"
   | "packageDetail" | "progress" | "profile" | "signin" | "signup"
   | "trainerHome" | "trainerSchedule" | "trainerMessages" | "messages" | "trainerClients"
-  | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
+  | "bookingDetail" | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
   | "adminTrainers" | "adminPackages" | "adminReports" | "adminSettings";
 
 const screenNames: Record<Screen, string> = {
@@ -39,6 +46,7 @@ const screenNames: Record<Screen, string> = {
   bookings: "My bookings",
   packages: "Packages",
   packageDetail: "Package details",
+  bookingDetail: "Booking details",
   reviews: "Reviews",
   progress: "Progress",
   profile: "Profile",
@@ -62,7 +70,7 @@ const screenNames: Record<Screen, string> = {
 const screens = Object.keys(screenNames) as Screen[];
 const memberScreens: Screen[] = [
   "home", "explore", "coach", "courses", "booking", "checkout", "success",
-  "bookings", "packages", "packageDetail", "reviews", "progress", "profile", "messages"
+  "bookings", "packages", "packageDetail", "bookingDetail", "reviews", "progress", "profile", "messages"
 ];
 const trainerScreens: Screen[] = ["trainerHome", "trainerSchedule", "trainerMessages", "trainerClients", "trainerProgress"];
 const adminScreens: Screen[] = ["admin", "adminBookings", "adminMembers", "adminTrainers", "adminPackages", "adminReports", "adminSettings"];
@@ -108,15 +116,19 @@ const courses = [
   { name: "Mobility & Flexibility", description: "Move freely. Feel stronger.", duration: 60, price: 650, level: "All levels", image: "photo-1544367567-0f2fcb009e0b", kind: "Mobility" }
 ];
 
-const bookings = [
-  { date: "Tue, Apr 16", time: "09:10 AM", title: "Strength & Conditioning", coach: "Coach Tan", place: "Nimman Gym", status: "Upcoming", price: 800, image: coaches[0].image },
-  { date: "Thu, Apr 18", time: "05:00 PM", title: "Yoga", coach: "Coach May", place: "Old City", status: "Upcoming", price: 660, image: coaches[1].image },
-  { date: "Sat, Apr 20", time: "10:30 AM", title: "HIIT", coach: "Coach Jeff", place: "Central", status: "Pending", price: 750, image: coaches[2].image },
-  { date: "Mon, Apr 08", time: "06:00 AM", title: "Mobility & Flexibility", coach: "Coach Ploy", place: "Hang Dong", status: "Past", price: 650, image: coaches[3].image }
-];
-
 function imageUrl(id: string, width = 720) {
   return `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=85`;
+}
+
+function formatSqlTime(start_time: string): string {
+  const [hour, minute] = start_time.split(":").map(Number);
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function addMinutesToSqlTime(start_time: string, minutesToAdd: number): string {
+  const [hour, minute] = start_time.split(":").map(Number);
+  const totalMinutes = hour * 60 + minute + minutesToAdd;
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}:00`;
 }
 
 function Brand({ light = false }: { light?: boolean }) {
@@ -199,21 +211,25 @@ export function FitBookingPrototype() {
   const [authReady, setAuthReady] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState("10+3");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All coaches");
   const [bookingTab, setBookingTab] = useState("Upcoming");
-  const [bookingDate, setBookingDate] = useState("Tue, Apr 16");
-  const [bookingTime, setBookingTime] = useState("09:10 AM");
-  const [serviceMode, setServiceMode] = useState("Gym");
+  const [coach_id, setCoachId] = useState(1);
+  const [course_id, setCourseId] = useState(1);
+  const [booking_date, setBookingDate] = useState("");
+  const [start_time, setStartTime] = useState("");
+  const [service_mode, setServiceMode] = useState<"GYM" | "HOME">("GYM");
   const [district, setDistrict] = useState("NIMMAN");
-  const [payment, setPayment] = useState("PromptPay");
-  const [packageChoice, setPackageChoice] = useState("5+1");
-  const [membership, setMembership] = useState("Gold Member");
+  const [payment_method, setPaymentMethod] = useState<PaymentMethod>("PROMPTPAY");
+  const [package_type, setPackageChoice] = useState<PackageType | null>(null);
+  const [level_id, setLevelId] = useState(3);
   const [rating, setRating] = useState(5);
   const [reviewTags, setReviewTags] = useState<string[]>(["Motivating", "Professional"]);
   const [metricTab, setMetricTab] = useState("Overview");
   const [profileTab, setProfileTab] = useState("Personal information");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<MemberPreviewBooking | null>(null);
+  const [bookingDetailReturn, setBookingDetailReturn] = useState<Screen>("bookings");
+  const [previewBookings, setPreviewBookings] = useState(preview_member_bookings);
 
   const navigate = useCallback((target: Screen) => {
     const role = requiredRole(target);
@@ -311,11 +327,61 @@ export function FitBookingPrototype() {
     }
   };
   const toggleFavorite = (name: string) => setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
-  const filteredCoaches = coaches.filter((coach) => {
-    const matchesSearch = `${coach.short} ${coach.title} ${coach.area} ${coach.tags.join(" ")}`.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === "All coaches" || coach.tags.some((tag) => tag.toLowerCase().includes(filter.toLowerCase())) || coach.area.toLowerCase().includes(filter.toLowerCase());
-    return matchesSearch && matchesFilter;
-  });
+  const openBookingDetail = (item: MemberPreviewBooking, returnTo: Screen) => {
+    setSelectedBooking(item);
+    setBookingDetailReturn(returnTo);
+    navigate("bookingDetail");
+  };
+  const submitBookingReview = (item: MemberPreviewBooking, reviewFields: Pick<ReviewCoach, "rating_professional" | "rating_communication" | "rating_punctuality" | "rating_effectiveness" | "comment">) => {
+    const review_coach: ReviewCoach = {
+      ...reviewFields,
+      review_coach_id: Math.max(0, ...previewBookings.map((entry) => entry.review_coach?.review_coach_id || 0)) + 1,
+      booking_id: item.booking.booking_id,
+      reviewer_id: item.booking.member_id,
+      avg_rating: (reviewFields.rating_professional + reviewFields.rating_communication + reviewFields.rating_punctuality + reviewFields.rating_effectiveness) / 4,
+      created_at: new Date().toISOString().slice(0, 19).replace("T", " ")
+    };
+    setPreviewBookings((current) => current.map((entry) => entry.booking.booking_id === item.booking.booking_id ? { ...entry, review_coach } : entry));
+    setSelectedBooking((current) => current?.booking.booking_id === item.booking.booking_id ? { ...current, review_coach } : current);
+    notify("Your review is saved in this local preview.");
+  };
+  const cancelMemberBooking = (item: MemberPreviewBooking, cancel_reason: string) => {
+    const now = new Date();
+    const startDateTime = new Date(`${item.booking.booking_date}T${item.booking.start_time}`);
+    const freeCancel = startDateTime.getTime() - now.getTime() >= 24 * 60 * 60 * 1000;
+    const updatedBooking = {
+      ...item.booking,
+      status: "CANCELLED" as const,
+      cancelled_by: "MEMBER" as const,
+      cancel_reason,
+      cancelled_at: now.toISOString().slice(0, 19).replace("T", " "),
+      updated_at: now.toISOString().slice(0, 19).replace("T", " ")
+    };
+    const updatedItem = {
+      ...item,
+      booking: updatedBooking,
+      orders: item.orders.map((order) => freeCancel && order.payment_status === "PAID"
+        ? { ...order, payment_status: "REFUNDED" as const, refunded_at: updatedBooking.cancelled_at }
+        : freeCancel && order.payment_status === "UNPAID"
+          ? { ...order, payment_status: "CANCELLED" as const }
+          : order),
+      member_package: freeCancel && item.member_package
+        ? { ...item.member_package, remaining_sessions: Math.min(item.member_package.total_sessions, item.member_package.remaining_sessions + 1) }
+        : item.member_package
+    };
+    setPreviewBookings((current) => current.map((entry) => entry.booking.booking_id === item.booking.booking_id ? updatedItem : entry));
+    setSelectedBooking(updatedItem);
+    notify(freeCancel ? "Session cancelled. The preview reflects a full refund." : "Session cancelled. This preview reflects the no-refund window.");
+  };
+  const selectCoachListing = (selected_coach_id: number, selected_course_id: number) => {
+    setCoachId(selected_coach_id);
+    setCourseId(selected_course_id);
+    setBookingDate("");
+    setStartTime("");
+  };
+  const currentListing = preview_coach_listings.find((item) => item.coach.coach_id === coach_id) || preview_coach_listings[0];
+  const currentCourse = preview_courses.find((item) => item.course_id === course_id) || preview_courses[0];
+  const membership_level = preview_membership_levels.find((item) => item.level_id === level_id) || preview_membership_levels[0];
 
   const toggleTag = (tag: string) => setReviewTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
 
@@ -385,17 +451,18 @@ export function FitBookingPrototype() {
       </header>
       <main className="screen-content">
         {screen === "home" && account && <HomeScreen navigate={navigate} notify={notify} account={account} />}
-        {screen === "explore" && <ExploreScreen search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} coaches={filteredCoaches} favorites={favorites} toggleFavorite={toggleFavorite} navigate={navigate} />}
-        {screen === "coach" && <CoachProfile navigate={navigate} notify={notify} favorite={favorites.includes(coaches[0].name)} toggleFavorite={() => toggleFavorite(coaches[0].name)} />}
-        {screen === "courses" && <CoursesScreen navigate={navigate} />}
-        {screen === "booking" && <BookingScreen date={bookingDate} setDate={setBookingDate} time={bookingTime} setTime={setBookingTime} mode={serviceMode} setMode={setServiceMode} district={district} setDistrict={setDistrict} navigate={navigate} />}
-        {screen === "checkout" && <CheckoutScreen date={bookingDate} time={bookingTime} mode={serviceMode} packageChoice={packageChoice} setPackageChoice={setPackageChoice} membership={membership} setMembership={setMembership} payment={payment} setPayment={setPayment} navigate={navigate} />}
-        {screen === "success" && <SuccessScreen date={bookingDate} time={bookingTime} navigate={navigate} />}
-        {screen === "bookings" && <BookingsScreen tab={bookingTab} setTab={setBookingTab} navigate={navigate} />}
-        {screen === "packages" && <PackagesScreen membership={membership} setMembership={setMembership} notify={notify} onChoose={(name) => { setSelectedPackage(name); navigate("packageDetail"); }} />}
-        {screen === "packageDetail" && <PackageDetailScreen selected={selectedPackage} onBack={() => navigate("packages")} onChoose={(name) => { setSelectedPackage(name); setPackageChoice(name); navigate("checkout"); }} />}
+        {screen === "explore" && <ExploreScreen search={search} setSearch={setSearch} favorites={favorites} toggleFavorite={toggleFavorite} navigate={navigate} onSelectCoach={selectCoachListing} />}
+        {screen === "coach" && <CoachProfile navigate={navigate} notify={notify} coach={currentListing} course_id={course_id} favorite={favorites.includes(currentListing.display_name)} toggleFavorite={() => toggleFavorite(currentListing.display_name)} onChooseCourse={(selected_course_id) => { setCourseId(selected_course_id); navigate("booking"); }} />}
+        {screen === "courses" && <CoursesScreen navigate={navigate} coach_id={coach_id} course_id={course_id} onSelectCourse={(selected_course_id) => { setCourseId(selected_course_id); navigate("booking"); }} />}
+        {screen === "booking" && <BookingScreen coach_id={coach_id} course_id={course_id} booking_date={booking_date} setBookingDate={setBookingDate} start_time={start_time} setStartTime={setStartTime} service_mode={service_mode} setMode={setServiceMode} district={district} setDistrict={setDistrict} navigate={navigate} coach={currentListing} course={currentCourse} membership_level={membership_level} />}
+        {screen === "checkout" && <CheckoutScreen booking_date={booking_date} start_time={start_time} service_mode={service_mode} package_type={package_type} setPackageChoice={setPackageChoice} membership_level={membership_level} setLevelId={setLevelId} payment_method={payment_method} setPaymentMethod={setPaymentMethod} navigate={navigate} course={currentCourse} coach={currentListing} />}
+        {screen === "success" && <SuccessScreen booking_date={booking_date} start_time={start_time} navigate={navigate} course={currentCourse} coach={currentListing} />}
+        {screen === "bookings" && <BookingsScreen tab={bookingTab} setTab={setBookingTab} navigate={navigate} previewBookings={previewBookings} onOpenBooking={(item) => openBookingDetail(item, "bookings")} onSubmitReview={submitBookingReview} />}
+        {screen === "bookingDetail" && selectedBooking && <BookingDetailScreen item={selectedBooking} onBack={() => navigate(bookingDetailReturn)} onPayNow={() => { setCourseId(selectedBooking.booking.course_id); setCoachId(selectedBooking.booking.coach_id); setBookingDate(selectedBooking.booking.booking_date); setStartTime(selectedBooking.booking.start_time); setPackageChoice(selectedBooking.booking.package_id ? selectedBooking.member_package?.package_type || null : null); setPaymentMethod(selectedBooking.orders[0]?.payment_method || "PROMPTPAY"); navigate("checkout"); }} onSubmitReview={submitBookingReview} onCancel={cancelMemberBooking} />}
+        {screen === "packages" && <PackagesScreen membership_level={membership_level} onChoose={(name) => { setSelectedPackage(name); navigate("packageDetail"); }} />}
+        {screen === "packageDetail" && <PackageDetailScreen selected={selectedPackage} onBack={() => navigate("packages")} onChoose={(name) => { setSelectedPackage(name); if (name === "5+1" || name === "10+3" || name === "20+7") setPackageChoice(name); navigate("checkout"); }} />}
         {screen === "reviews" && <ReviewsScreen rating={rating} setRating={setRating} tags={reviewTags} toggleTag={toggleTag} notify={notify} />}
-        {screen === "progress" && account && <ProgressScreen tab={metricTab} setTab={setMetricTab} navigate={navigate} account={account} />}
+        {screen === "progress" && account && <ProgressScreen tab={metricTab} setTab={setMetricTab} navigate={navigate} account={account} previewBookings={previewBookings} onOpenBooking={(item) => openBookingDetail(item, "progress")} />}
         {screen === "profile" && account && <ProfileScreen tab={profileTab} setTab={setProfileTab} notify={notify} account={account} onSignOut={signOut} onSave={updateProfile} />}
         {screen === "messages" && account && <MemberMessages account={account} />}
       </main>
@@ -433,117 +500,321 @@ function HomeScreen({ navigate, notify, account }: { navigate: (screen: Screen) 
 function ZapIcon() { return <Sparkles size={15} />; }
 
 function ExploreScreen({
-  search, setSearch, filter, setFilter, coaches: visibleCoaches, favorites, toggleFavorite, navigate
+  search, setSearch, favorites, toggleFavorite, navigate, onSelectCoach
 }: {
-  search: string; setSearch: (value: string) => void; filter: string; setFilter: (value: string) => void;
-  coaches: typeof coaches; favorites: string[]; toggleFavorite: (name: string) => void; navigate: (screen: Screen) => void;
+  search: string; setSearch: (value: string) => void; favorites: string[];
+  toggleFavorite: (name: string) => void; navigate: (screen: Screen) => void;
+  onSelectCoach: (coach_id: number, course_id: number) => void;
 }) {
-  const filters = ["All coaches", "Strength", "HIIT", "Mobility", "Nimman", "Old City"];
+  type ExploreFilterFields = {
+    district: string;
+    course_id: string;
+    difficulty: string;
+    service_mode: string;
+    coach_level: string;
+    gym_id: string;
+  };
+  const emptyFilters: ExploreFilterFields = { district: "", course_id: "", difficulty: "", service_mode: "", coach_level: "", gym_id: "" };
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<ExploreFilterFields>(emptyFilters);
+  const [activeFilters, setActiveFilters] = useState<ExploreFilterFields>(emptyFilters);
+  const [filtersApplied, setFiltersApplied] = useState(false);
+  const filterControls: { key: keyof ExploreFilterFields; label: string; options: [string, string][] }[] = [
+    { key: "district", label: "District", options: [["NIMMAN", "Nimman"], ["OLD_CITY", "Old City"], ["CENTRAL", "Central"], ["MAE_RIM", "Mae Rim"], ["HANG_DONG", "Hang Dong"]] },
+    { key: "course_id", label: "Course", options: preview_courses.filter((course) => course.is_active === 1).map((course) => [String(course.course_id), course.course_name] as [string, string]) },
+    { key: "difficulty", label: "Difficulty", options: [["BEGINNER", "Beginner"], ["INTERMEDIATE", "Intermediate"], ["ADVANCED", "Advanced"]] },
+    { key: "service_mode", label: "Service mode", options: [["GYM", "Gym"], ["HOME", "Home"], ["BOTH", "Gym and home"]] },
+    { key: "coach_level", label: "Coach level", options: [["BEGINNER", "Beginner"], ["INTERMEDIATE", "Intermediate"], ["ADVANCED", "Advanced"], ["MASTER", "Master"]] },
+    { key: "gym_id", label: "Gym", options: Array.from(new Map(preview_coach_listings.filter((entry) => entry.gym.is_active === 1).map((entry) => [String(entry.gym.gym_id), entry.gym.gym_name] as [string, string]))) }
+  ];
+  const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
+  const visibleListings = preview_coach_listings.filter((listing) => {
+    if (listing.coach.status !== "ACTIVE" || listing.coach_service.is_active !== 1 || listing.gym.is_active !== 1 || listing.course.is_active !== 1 || listing.coach_course.is_active !== 1) return false;
+    const offered_courses = preview_coach_courses.filter((item) => item.coach_id === listing.coach.coach_id && item.is_active === 1);
+    const matchesSearch = `${listing.display_name} ${offered_courses.map((item) => preview_courses.find((course) => course.course_id === item.course_id)?.course_name || "").join(" ")} ${listing.ui.location_label} ${listing.coach.coach_level}`.toLowerCase().includes(search.toLowerCase());
+    const { district, course_id, difficulty, service_mode, coach_level, gym_id } = activeFilters;
+    return matchesSearch &&
+      (!district || listing.coach_service.service_area === district || listing.gym.district === district) &&
+      (!course_id || offered_courses.some((item) => item.course_id === Number(course_id))) &&
+      (!difficulty || offered_courses.some((item) => (!course_id || item.course_id === Number(course_id)) && preview_courses.find((course) => course.course_id === item.course_id)?.difficulty === difficulty)) &&
+      (!service_mode || listing.coach.service_mode === service_mode) &&
+      (!coach_level || listing.coach.coach_level === coach_level) &&
+      (!gym_id || listing.gym.gym_id === Number(gym_id));
+  });
+  const filterLabel = (key: keyof ExploreFilterFields, value: string) =>
+    filterControls.find((control) => control.key === key)?.options.find(([option]) => option === value)?.[1] || value;
+  const changeActiveFilter = (key: keyof ExploreFilterFields, value: string) =>
+    setActiveFilters((current) => ({ ...current, [key]: current[key] === value ? "" : value }));
   return <div className="content-wrap">
     <PageHeading eyebrow="Find your fit" title="The right coach changes everything." detail="Good people, smart training, and a plan that feels like yours." />
-    <div className="search-bar"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, specialty, or location" aria-label="Search coaches" /><button className="filter-button" onClick={() => setFilter(filter === "All coaches" ? "Strength" : "All coaches")}><SlidersHorizontal size={16} /> Filters</button></div>
-    <div className="filter-row">{filters.map((item) => <button key={item} className={`filter-chip ${filter === item ? "selected" : ""}`} onClick={() => setFilter(item)}>{item}</button>)}</div>
-    <div className="explore-location-row"><span><MapPin size={15} /> In Chiang Mai</span><button onClick={() => setFilter("Nimman")}>Change location <ChevronDown size={14} /></button><span className="result-count">{visibleCoaches.length} coaches</span></div>
-    {visibleCoaches.length ? <div className="coach-grid">{visibleCoaches.map((coach) => <CoachCard key={coach.name} coach={coach} onClick={() => navigate("coach")} favorite={favorites.includes(coach.name)} onFavorite={() => toggleFavorite(coach.name)} />)}</div> : <div className="empty-state"><Search size={25} /><h3>No coaches found</h3><p>Try another name, specialty, or neighborhood.</p><button className="text-link" onClick={() => { setSearch(""); setFilter("All coaches"); }}>Clear search</button></div>}
-    <section className="browse-band"><div><p className="eyebrow">TRAIN YOUR WAY</p><h2>A good workout starts with a good match.</h2><p>Explore by goal, not just by gym.</p></div><div className="browse-categories">{["Get stronger", "Move better", "Build a habit"].map((item, index) => <button key={item} onClick={() => setFilter(index === 0 ? "Strength" : index === 1 ? "Mobility" : "All coaches")}><span>{["01", "02", "03"][index]}</span>{item}<ArrowUpRight size={16} /></button>)}</div></section>
+    <div className="search-bar"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, specialty, or location" aria-label="Search coaches" /><button className="filter-button" aria-expanded={filtersOpen} onClick={() => { setDraftFilters(activeFilters); setFiltersOpen((open) => !open); }}><SlidersHorizontal size={16} /> Filters {activeFilterCount > 0 && <span className="filter-count">{activeFilterCount}</span>}</button></div>
+    {activeFilterCount > 0 && <div className="active-filter-chips" aria-label="Active filters">{(Object.keys(activeFilters) as (keyof ExploreFilterFields)[]).filter((key) => activeFilters[key]).map((key) => <button key={key} onClick={() => changeActiveFilter(key, activeFilters[key])}>{filterControls.find((control) => control.key === key)?.label}: {filterLabel(key, activeFilters[key])}<X size={13} /></button>)}</div>}
+    {filtersOpen && <section className="explore-filter-panel" aria-label="Coach filters">{filterControls.map(({ key, label, options }) => <label className="select-field" key={key} htmlFor={`explore-filter-${key}`}>{label}<select id={`explore-filter-${key}`} value={draftFilters[key]} onChange={(event) => setDraftFilters((current) => ({ ...current, [key]: event.target.value }))}><option value="">All</option>{options.map(([value, name]) => <option value={value} key={value}>{name}</option>)}</select></label>)}<div className="explore-filter-actions"><button className="text-link" onClick={() => { setDraftFilters(emptyFilters); setActiveFilters(emptyFilters); setFiltersApplied(true); }}>Clear all</button><button className="button button-primary" onClick={() => { setActiveFilters(draftFilters); setFiltersApplied(true); setFiltersOpen(false); }}>Apply filters</button></div></section>}
+    <div className="explore-location-row"><span><MapPin size={15} /> In Chiang Mai</span><span className="result-count">{visibleListings.length} coaches {filtersApplied ? "matching your filters" : "to explore"}</span></div>
+    {visibleListings.length ? <div className="coach-grid">{visibleListings.map((listing) => {
+      const selected_course = activeFilters.course_id
+        ? preview_courses.find((item) => item.course_id === Number(activeFilters.course_id)) || listing.course
+        : listing.course;
+      const selected_coach_course = preview_coach_courses.find((item) => item.coach_id === listing.coach.coach_id && item.course_id === selected_course.course_id) || listing.coach_course;
+      const coachCard = {
+        name: listing.display_name,
+        short: listing.display_name,
+        title: selected_course.course_name,
+        rating: listing.ui.avg_rating.toFixed(1),
+        reviews: listing.ui.review_count,
+        area: listing.ui.location_label,
+        price: selected_coach_course.price_per_session,
+        level: listing.coach.coach_level,
+        years: listing.coach.years_experience || 0,
+        tags: [selected_course.course_name],
+        image: listing.ui.image
+      };
+      return <CoachCard key={listing.coach.coach_id} coach={coachCard} onClick={() => { onSelectCoach(listing.coach.coach_id, selected_course.course_id); navigate("coach"); }} favorite={favorites.includes(listing.display_name)} onFavorite={() => toggleFavorite(listing.display_name)} />;
+    })}</div> : <div className="empty-state"><Search size={25} /><h3>No coaches found</h3><p>Try another name, course, or filter combination.</p><button className="text-link" onClick={() => { setSearch(""); setActiveFilters(emptyFilters); setDraftFilters(emptyFilters); setFiltersApplied(true); }}>Clear search and filters</button></div>}
+    <section className="browse-band"><div><p className="eyebrow">TRAIN YOUR WAY</p><h2>A good workout starts with a good match.</h2><p>Explore by goal, not just by gym.</p></div><div className="browse-categories">{["Get stronger", "Move better", "Build a habit"].map((item, index) => <button key={item} onClick={() => { const next = { ...emptyFilters, course_id: index === 0 ? "1" : index === 1 ? "3" : "" }; setActiveFilters(next); setDraftFilters(next); setFiltersApplied(true); }}><span>{["01", "02", "03"][index]}</span>{item}<ArrowUpRight size={16} /></button>)}</div></section>
   </div>;
 }
 
-function CoachProfile({ navigate, notify, favorite, toggleFavorite }: { navigate: (screen: Screen) => void; notify: (message: string) => void; favorite: boolean; toggleFavorite: () => void }) {
-  const coach = coaches[0];
+function CoachProfile({ navigate, notify, favorite, toggleFavorite, coach, course_id, onChooseCourse }: {
+  navigate: (screen: Screen) => void;
+  notify: (message: string) => void;
+  favorite: boolean;
+  toggleFavorite: () => void;
+  coach: (typeof preview_coach_listings)[number];
+  course_id: number;
+  onChooseCourse: (course_id: number) => void;
+}) {
+  const offered_courses = preview_coach_courses.filter((item) => item.coach_id === coach.coach.coach_id && item.is_active === 1);
+  const selected_course = preview_courses.find((item) => item.course_id === course_id) || coach.course;
+  const selected_coach_course = offered_courses.find((item) => item.course_id === selected_course.course_id) || coach.coach_course;
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("explore")}><ArrowLeft size={16} /> Back to coaches</button>
-    <section className="coach-profile-hero"><Photo id={coach.image} alt="Coach Tan training" /><div className="profile-image-shade" /><div className="coach-profile-hero-copy"><Pill className="verified verified-light"><ShieldCheck size={13} /> Verified coach</Pill><h1>Tan Chaiyaporn</h1><p>Strength & Conditioning Specialist</p><div className="profile-hero-stats"><span><Star size={15} fill="currentColor" /> <b>4.9</b> (128 reviews)</span><span><MapPin size={15} /> Nimman, Old City, Central</span><span><HomePinIcon /> Gym / Home</span></div></div><button className="icon-button profile-favorite" onClick={toggleFavorite} aria-label={favorite ? "Remove from favorites" : "Add to favorites"}><Heart size={20} fill={favorite ? "currentColor" : "none"} /></button></section>
+    <section className="coach-profile-hero"><Photo id={coach.ui.image} alt={`${coach.display_name} training`} /><div className="profile-image-shade" /><div className="coach-profile-hero-copy"><Pill className="verified verified-light"><ShieldCheck size={13} /> Verified coach</Pill><h1>{coach.display_name}</h1><p>{selected_course.course_name} Specialist</p><div className="profile-hero-stats"><span><Star size={15} fill="currentColor" /> <b>{coach.ui.avg_rating.toFixed(1)}</b> ({coach.ui.review_count} reviews)</span><span><MapPin size={15} /> {coach.ui.location_label}</span><span><HomePinIcon /> {labels.service_mode[coach.coach.service_mode]}</span></div></div><button className="icon-button profile-favorite" onClick={toggleFavorite} aria-label={favorite ? "Remove from favorites" : "Add to favorites"}><Heart size={20} fill={favorite ? "currentColor" : "none"} /></button></section>
     <div className="coach-profile-columns"><div className="profile-main-column">
-      <section className="profile-section"><div className="section-title"><div><h2>About Tan</h2><p>How we can work together</p></div><Pill>6 years experience</Pill></div><p className="body-copy">I’m a certified personal trainer who believes strong bodies are built one good session at a time. I focus on building strength, improving mobility, and finding an approach that feels sustainable for you.</p><button className="text-link" onClick={() => notify("Tan's full profile is part of this design preview.")}>Read more <ArrowRight size={14} /></button></section>
-      <section className="profile-section"><h2>Specialties</h2><div className="tag-row">{coach.tags.map((tag) => <Pill key={tag}><Dumbbell size={13} /> {tag}</Pill>)}</div></section>
-      <section className="profile-section"><div className="section-title"><div><h2>Training with Tan</h2><p>Choose a session to see available times.</p></div><button className="text-link" onClick={() => navigate("courses")}>All courses <ArrowRight size={14} /></button></div>{courses.slice(0, 2).map((course) => <CourseCard key={course.name} course={course} onClick={() => navigate("booking")} />)}</section>
-      <section className="profile-section"><div className="section-title"><h2>Kind words</h2><button className="text-link" onClick={() => navigate("reviews")}>All reviews <ArrowRight size={14} /></button></div><div className="quote-card"><div className="stars">★★★★★</div><p>“Coach Tan keeps every session challenging but encouraging. I’m stronger than I thought I could be.”</p><span>Nattakarn S. · April 05, 2026</span></div></section>
-    </div><aside className="coach-booking-card"><p className="eyebrow">START YOUR SESSION</p><div className="coach-price">฿{coach.price.toLocaleString()}<small> / session</small></div><p>60 minutes · one-to-one coaching</p><div className="coach-availability"><span className="availability-dot" /> Next opening <strong>Today, 09:10</strong></div><div className="coach-service-pills"><Pill><House size={13} /> Gym</Pill><Pill><MapPin size={13} /> At home</Pill></div><PrimaryButton onClick={() => navigate("courses")}>Choose a session <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Your schedule stays yours.</p></aside></div>
+      <section className="profile-section"><div className="section-title"><div><h2>About {coach.display_name}</h2><p>How we can work together</p></div><Pill>{coach.coach.years_experience ?? 0} years experience</Pill></div><p className="body-copy">{coach.coach.bio || "A coach who builds a practical plan around your goals and experience."}</p><button className="text-link" onClick={() => notify("This is a local member-side design preview.")}>Read more <ArrowRight size={14} /></button></section>
+      <section className="profile-section"><h2>Specialties</h2><div className="tag-row"><Pill><Dumbbell size={13} /> {coach.course.course_name}</Pill></div></section>
+      <section className="profile-section"><div className="section-title"><div><h2>Training with {coach.display_name}</h2><p>Choose a session to see available times.</p></div><button className="text-link" onClick={() => navigate("courses")}>All courses <ArrowRight size={14} /></button></div>{offered_courses.map((coach_course) => {
+        const course = preview_courses.find((item) => item.course_id === coach_course.course_id);
+        if (!course || course.is_active !== 1) return null;
+        return <CourseCard key={course.course_id} course={{ name: course.course_name, description: course.description || "", duration: course.default_duration, price: coach_course.price_per_session, level: labels.difficulty[course.difficulty], image: coach.ui.image, kind: course.difficulty }} onClick={() => onChooseCourse(course.course_id)} />;
+      })}</section>
+      <section className="profile-section"><div className="section-title"><h2>Kind words</h2><button className="text-link" onClick={() => navigate("reviews")}>All reviews <ArrowRight size={14} /></button></div><div className="quote-card"><div className="stars">★★★★★</div><p>“Clear guidance and a session shaped around the member’s goals.”</p><span>Member feedback · Preview data</span></div></section>
+    </div><aside className="coach-booking-card"><p className="eyebrow">START YOUR SESSION</p><div className="coach-price">฿{selected_coach_course.price_per_session.toLocaleString()}<small> / session</small></div><p>{selected_course.default_duration} minutes · one-to-one coaching</p><div className="coach-availability"><span className="availability-dot" /> Availability based on the coach schedule</div><div className="coach-service-pills"><Pill><House size={13} /> {labels.service_mode[coach.coach.service_mode]}</Pill><Pill><MapPin size={13} /> {labels.district[coach.gym.district]}</Pill></div><PrimaryButton onClick={() => navigate("courses")}>Choose a session <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Preview schedule only.</p></aside></div>
   </div>;
 }
 
 function HomePinIcon() { return <House size={14} />; }
 
-function CoursesScreen({ navigate }: { navigate: (screen: Screen) => void }) {
+function CoursesScreen({ navigate, coach_id, course_id, onSelectCourse }: {
+  navigate: (screen: Screen) => void;
+  coach_id: number;
+  course_id: number;
+  onSelectCourse: (course_id: number) => void;
+}) {
   const [active, setActive] = useState("All sessions");
-  const kinds = ["All sessions", "Strength", "Cardio", "Mobility"];
-  const shown = courses.filter((course) => active === "All sessions" || course.kind === active);
+  const kinds = ["All sessions", "BEGINNER", "INTERMEDIATE", "ADVANCED"];
+  const offered_courses = preview_coach_courses.filter((item) => item.coach_id === coach_id && item.is_active === 1);
+  const shown = preview_courses.filter((course) => course.is_active === 1 &&
+    offered_courses.some((item) => item.course_id === course.course_id) &&
+    (active === "All sessions" || course.difficulty === active));
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("coach")}><ArrowLeft size={16} /> Coach Tan</button>
     <PageHeading eyebrow="TRAIN WITH TAN" title="Choose your kind of strong." detail="Find a session that fits the way you want to move." />
-    <div className="filter-row course-type-tabs">{kinds.map((kind) => <button key={kind} className={`filter-chip ${active === kind ? "selected" : ""}`} onClick={() => setActive(kind)}>{kind}</button>)}</div>
-    <div className="course-list">{shown.map((course) => <CourseCard key={course.name} course={course} onClick={() => navigate("booking")} />)}</div>
+    <div className="filter-row course-type-tabs">{kinds.map((kind) => <button key={kind} className={`filter-chip ${active === kind ? "selected" : ""}`} onClick={() => setActive(kind)}>{kind === "All sessions" ? kind : labels.difficulty[kind as keyof typeof labels.difficulty]}</button>)}</div>
+    <div className="course-list">{shown.map((course) => <CourseCard key={course.course_id} course={{ name: course.course_name, description: course.description || "", duration: course.default_duration, price: offered_courses.find((item) => item.course_id === course.course_id)?.price_per_session || 0, level: labels.difficulty[course.difficulty], image: preview_coach_listings.find((listing) => listing.coach.coach_id === coach_id)?.ui.image || preview_coach_listings[0].ui.image, kind: course.difficulty }} onClick={() => onSelectCourse(course.course_id)} />)}</div>
     <div className="info-callout"><ShieldCheck size={18} /><span><b>Every session is personal.</b><small>Your coach will tailor each workout around your goals and experience.</small></span></div>
   </div>;
 }
 
 function BookingScreen({
-  date, setDate, time, setTime, mode, setMode, district, setDistrict, navigate
+  coach_id, course_id, booking_date, setBookingDate, start_time, setStartTime,
+  service_mode, setMode, district, setDistrict, navigate, coach, course, membership_level
 }: {
-  date: string; setDate: (value: string) => void; time: string; setTime: (value: string) => void;
-  mode: string; setMode: (value: string) => void; district: string; setDistrict: (value: string) => void; navigate: (screen: Screen) => void;
+  coach_id: number; course_id: number; booking_date: string; setBookingDate: (value: string) => void;
+  start_time: string; setStartTime: (value: string) => void; service_mode: "GYM" | "HOME";
+  setMode: (value: "GYM" | "HOME") => void; district: string; setDistrict: (value: string) => void;
+  navigate: (screen: Screen) => void;
+  coach: (typeof preview_coach_listings)[number];
+  course: (typeof preview_courses)[number];
+  membership_level: MembershipLevel;
 }) {
-  const dates = [["Mon, Apr 15", "15"], ["Tue, Apr 16", "16"], ["Wed, Apr 17", "17"], ["Thu, Apr 18", "18"], ["Fri, Apr 19", "19"]];
-  const times = ["08:00 AM", "09:10 AM", "10:30 AM", "01:00 PM", "03:20 PM", "05:00 PM"];
-  const districts = ["NIMMAN", "OLD CITY", "CENTRAL", "MAE RIM", "HANG DONG"];
+  const districts = Object.keys(labels.district) as (keyof typeof labels.district)[];
+  const coach_course = preview_coach_courses.find((item) => item.coach_id === coach_id && item.course_id === course_id) || coach.coach_course;
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("courses")}><ArrowLeft size={16} /> Back to sessions</button>
     <PageHeading eyebrow="BOOK A SESSION" title="Make some time for you." detail="Choose when and where you’d like to train." />
     <div className="booking-layout"><div className="booking-options">
-      <section className="form-section"><div className="form-section-title"><span className="step-number">1</span><div><h2>Pick a day</h2><p>April 2026</p></div><button className="icon-button" aria-label="Next month"><ChevronRight size={18} /></button></div><div className="date-picker">{dates.map(([label, day]) => <button key={day} className={`date-option ${date === label ? "selected" : ""}`} onClick={() => setDate(label)}><small>{label.split(",")[0]}</small><b>{day}</b><i /></button>)}</div></section>
-      <section className="form-section"><div className="form-section-title"><span className="step-number">2</span><div><h2>Find a time</h2><p>All times are Chiang Mai time.</p></div></div><div className="time-grid">{times.map((slot) => <button key={slot} className={`time-option ${time === slot ? "selected" : ""} ${slot === "08:00 AM" ? "time-unavailable" : ""}`} disabled={slot === "08:00 AM"} onClick={() => setTime(slot)}>{slot}</button>)}</div></section>
-      <section className="form-section"><div className="form-section-title"><span className="step-number">3</span><div><h2>Choose a place</h2><p>Train where it works for you.</p></div></div><div className="mode-toggle">{["Gym", "At home"].map((item) => <button key={item} className={mode === item ? "selected" : ""} onClick={() => setMode(item)}>{item === "Gym" ? <Dumbbell size={16} /> : <House size={16} />}{item}</button>)}</div>{mode === "Gym" ? <button className="location-select"><MapPin size={16} /><span><b>Nimman Fitness Club</b><small>Nimman · Open until 10:00 PM</small></span><ChevronDown size={16} /></button> : <div className="select-field"><label htmlFor="district">Your neighborhood</label><select id="district" value={district} onChange={(event) => setDistrict(event.target.value)}>{districts.map((area) => <option key={area}>{area}</option>)}</select></div>}</section>
-    </div><aside className="booking-summary"><p className="eyebrow">YOUR SESSION</p><div className="summary-coach"><Photo id={coaches[0].image} alt="" /><span><b>Coach Tan</b><small>Strength & Conditioning</small><small><Star size={12} fill="currentColor" /> 4.9 · 128 reviews</small></span></div><div className="summary-divider" /><div className="summary-line"><span><CalendarDays size={15} /> {date}</span><b>{time}</b></div><div className="summary-line"><span><MapPin size={15} /> {mode === "Gym" ? "Nimman Gym" : `At home · ${district}`}</span></div><div className="summary-divider" /><div className="summary-line"><span>60 min session</span><b>฿800</b></div><div className="summary-line subdued"><span>Gold member discount</span><b>−10%</b></div><div className="summary-total"><span>Session total</span><b>฿720</b></div><PrimaryButton onClick={() => navigate("checkout")}>Continue to checkout <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> You won’t be charged yet.</p></aside></div>
+      <section className="booking-course-summary"><Photo id={coach.ui.image} alt="" /><span><small>TRAIN WITH</small><b>{coach.display_name}</b><span>{course.course_name} · {course.default_duration} minutes</span></span><Pill>{labels.coach_level[coach.coach.coach_level]}</Pill></section>
+      <MemberBookingPicker coach_id={coach_id} course_id={course_id} booking_date={booking_date} start_time={start_time} onChange={(fields) => { if (fields.booking_date) setBookingDate(fields.booking_date); if (fields.start_time) setStartTime(fields.start_time); }} />
+      {/* TODO(after trainer page done): redesign place selection. Keep its current interaction until then. */}
+      <section className="form-section"><div className="form-section-title"><span className="step-number">3</span><div><h2>Choose a place</h2><p>Train where it works for you.</p></div></div><div className="mode-toggle">{(["GYM", "HOME"] as const).map((item) => <button key={item} className={service_mode === item ? "selected" : ""} onClick={() => setMode(item)}>{item === "GYM" ? <Dumbbell size={16} /> : <House size={16} />}{item === "GYM" ? "Gym" : "At home"}</button>)}</div>{service_mode === "GYM" ? <button className="location-select"><MapPin size={16} /><span><b>Nimman Fitness Club</b><small>Nimman · Open until 10:00 PM</small></span><ChevronDown size={16} /></button> : <div className="select-field"><label htmlFor="district">Your neighborhood</label><select id="district" value={district} onChange={(event) => setDistrict(event.target.value)}>{districts.map((area) => <option key={area} value={area}>{labels.district[area]}</option>)}</select></div>}</section>
+    </div><aside className="booking-summary"><p className="eyebrow">YOUR SESSION</p><div className="summary-coach"><Photo id={coach.ui.image} alt="" /><span><b>{coach.display_name}</b><small>{course.course_name}</small><small><Star size={12} fill="currentColor" /> {coach.ui.avg_rating} · {coach.ui.review_count} reviews</small></span></div><div className="summary-divider" /><div className="summary-line"><span><CalendarDays size={15} /> {booking_date ? formatBookingDate(booking_date) : "Choose a date"}</span></div><div className="summary-line"><span><Clock3 size={15} /> {start_time ? `${formatSqlTime(start_time)} – ${formatSqlTime(addMinutesToSqlTime(start_time, course.default_duration))}` : "Choose a time"}</span></div><div className="summary-line"><span><MapPin size={15} /> {service_mode === "GYM" ? "Nimman Gym" : `At home · ${labels.district[district as keyof typeof labels.district] || district}`}</span></div><div className="summary-divider" /><div className="summary-line"><span>{course.default_duration} min session</span><b>฿{coach_course.price_per_session.toLocaleString()}</b></div><div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round(coach_course.price_per_session * membership_level.discount_rate).toLocaleString()}</b></div><div className="summary-total"><span>Final amount</span><b>฿{Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate)).toLocaleString()}</b></div><PrimaryButton disabled={!booking_date || !start_time} onClick={() => navigate("checkout")}>Continue to checkout <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Preview only · no booking or charge is created.</p></aside></div>
   </div>;
 }
 
 function CheckoutScreen({
-  date, time, mode, packageChoice, setPackageChoice, membership, setMembership, payment, setPayment, navigate
+  booking_date, start_time, service_mode, package_type, setPackageChoice, membership_level,
+  setLevelId, payment_method, setPaymentMethod, navigate, course, coach
 }: {
-  date: string; time: string; mode: string; packageChoice: string; setPackageChoice: (value: string) => void;
-  membership: string; setMembership: (value: string) => void; payment: string; setPayment: (value: string) => void; navigate: (screen: Screen) => void;
+  booking_date: string; start_time: string; service_mode: "GYM" | "HOME"; package_type: PackageType | null;
+  setPackageChoice: (value: PackageType | null) => void; membership_level: MembershipLevel;
+  setLevelId: (value: number) => void; payment_method: PaymentMethod;
+  setPaymentMethod: (value: PaymentMethod) => void; navigate: (screen: Screen) => void;
+  course: (typeof preview_courses)[number];
+  coach: (typeof preview_coach_listings)[number];
 }) {
-  const methods = [{ name: "PromptPay", detail: "Scan to pay", icon: "◉" }, { name: "Credit / Debit Card", detail: "Visa, Mastercard", icon: "▣" }, { name: "TrueMoney Wallet", detail: "Fast and easy", icon: "◉" }];
+  const coach_course = preview_coach_courses.find((item) => item.coach_id === coach.coach.coach_id && item.course_id === course.course_id) || coach.coach_course;
+  const methods: { name: string; value: PaymentMethod; detail: string; icon: string }[] = [
+    { name: "PromptPay", value: "PROMPTPAY", detail: "Scan to pay", icon: "◉" },
+    { name: "Credit / Debit Card", value: "CARD", detail: "Visa, Mastercard", icon: "▣" },
+    { name: "Cash", value: "CASH", detail: "Pay in person", icon: "฿" },
+    { name: "Package credit", value: "PACKAGE_CREDIT", detail: "Use a remaining session", icon: "◉" }
+  ];
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("booking")}><ArrowLeft size={16} /> Back to time selection</button>
     <PageHeading eyebrow="ONE LAST STEP" title="Your time is waiting." detail="Review your session and choose how you’d like to pay." />
     <div className="checkout-layout"><div className="checkout-main">
-      <section className="checkout-card"><div className="summary-coach"><Photo id={coaches[0].image} alt="" /><span><b>Coach Tan</b><small>Strength & Conditioning</small><small><Star size={12} fill="currentColor" /> 4.9 · 800 ฿</small></span><Pill className="verified-pill"><ShieldCheck size={13} /> Verified</Pill></div><div className="checkout-detail-row"><span><CalendarDays size={15} /> {date} · {time}</span><span><MapPin size={15} /> {mode === "Gym" ? "Nimman Gym" : "At home"}</span></div></section>
-      <section className="checkout-card"><div className="section-title"><div><h2>Member discount</h2><p>Your membership makes every session go further.</p></div><Pill className="gold-pill"><Award size={13} /> Member</Pill></div><div className="membership-choice-row"><span className="membership-medal"><Trophy size={18} /></span><span><b>{membership}</b><small>10% off every session</small></span><strong>− ฿80</strong></div><div className="tier-selector">{["Gold Member", "Silver Member", "Bronze Member"].map((tier) => <button key={tier} className={`tier-option ${membership === tier ? "selected" : ""}`} onClick={() => setMembership(tier)}>{tier.replace(" Member", "")}</button>)}</div></section>
-      <section className="checkout-card"><div className="section-title"><div><h2>Session package</h2><p>Package types follow the FitBooking plan options.</p></div><button className="text-link" onClick={() => navigate("packages")}>Compare plans <ArrowRight size={14} /></button></div><div className="package-choices">{[["Single session", "single", "฿720", "Flexible, one at a time"], ["5+1 Sessions", "5+1", "฿3,400", "5 paid + 1 bonus · 180-day validity"], ["10+3 Sessions", "10+3", "฿8,970", "10 paid + 3 bonus · Best value"], ["20+7 Sessions", "20+7", "฿17,550", "20 paid + 7 bonus · 180-day validity"]].map(([name, type, price, detail]) => <button key={type} className={`package-choice ${packageChoice === type ? "selected" : ""}`} onClick={() => setPackageChoice(type)}><span className="radio-dot" /><span><b>{name}</b><small>{detail}</small></span><strong>{price}</strong></button>)}</div></section>
-      <section className="checkout-card"><div className="section-title"><div><h2>Payment method</h2><p>Choose how you’d like to complete your order.</p></div></div><div className="payment-method-list">{methods.map((method) => <button key={method.name} className={`payment-option ${payment === method.name ? "selected" : ""}`} onClick={() => setPayment(method.name)}><span className="radio-dot" /><span className="payment-method-icon">{method.icon}</span><span><b>{method.name}</b><small>{method.detail}</small></span><ChevronRight size={16} /></button>)}</div></section>
-    </div><aside className="checkout-total-card"><p className="eyebrow">ORDER SUMMARY</p><div className="summary-line"><span>Strength & Conditioning</span><b>฿800</b></div><div className="summary-line subdued"><span>Gold member · 10%</span><b>−฿80</b></div>{packageChoice !== "single" && <div className="summary-line subdued"><span>{packageChoice} package selected</span><b>Included</b></div>}<div className="summary-divider" /><div className="summary-total"><span>Total due today</span><b>{packageChoice === "single" ? "฿720" : packageChoice === "5+1" ? "฿3,400" : packageChoice === "20+7" ? "฿17,550" : "฿8,970"}</b></div><PrimaryButton onClick={() => navigate("success")}>Confirm booking <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Secure demo checkout · no real payment</p><button className="text-link checkout-help" onClick={() => navigate("profile")}><CircleHelp size={14} /> Need a hand?</button></aside></div>
+      <section className="checkout-card"><div className="summary-coach"><Photo id={coach.ui.image} alt="" /><span><b>{coach.display_name}</b><small>{course.course_name}</small><small><Star size={12} fill="currentColor" /> {coach.ui.avg_rating} · ฿{coach_course.price_per_session}</small></span><Pill className="verified-pill"><ShieldCheck size={13} /> Verified</Pill></div><div className="checkout-detail-row"><span><CalendarDays size={15} /> {formatBookingDate(booking_date)} · {formatSqlTime(start_time)}</span><span><MapPin size={15} /> {service_mode === "GYM" ? "Nimman Gym" : "At home"}</span></div></section>
+      {package_type === null && <section className="checkout-card"><div className="section-title"><div><h2>Member discount</h2><p>Your membership makes every session go further.</p></div><Pill className="gold-pill"><Award size={13} /> Member</Pill></div><div className="membership-choice-row"><span className="membership-medal"><Trophy size={18} /></span><span><b>{membership_level.level_name}</b><small>{membership_level.discount_rate * 100}% off this session</small></span><strong>− ฿{Math.round(coach_course.price_per_session * membership_level.discount_rate)}</strong></div><div className="tier-selector">{preview_membership_levels.map((item) => <button key={item.level_id} className={`tier-option ${membership_level.level_id === item.level_id ? "selected" : ""}`} onClick={() => setLevelId(item.level_id)}>{item.level_name.replace(" Member", "")}</button>)}</div></section>}
+      <section className="checkout-card"><div className="section-title"><div><h2>Session package</h2><p>Package types follow the FitBooking plan options.</p></div><button className="text-link" onClick={() => navigate("packages")}>Compare plans <ArrowRight size={14} /></button></div><div className="package-choices">{([{ name: "Single session", type: null, price: "฿720", detail: "Flexible, one at a time" }, { name: "5+1 Sessions", type: "5+1", price: "฿3,400", detail: "5 paid + 1 bonus · 180-day validity" }, { name: "10+3 Sessions", type: "10+3", price: "฿8,970", detail: "10 paid + 3 bonus · Best value" }, { name: "20+7 Sessions", type: "20+7", price: "฿17,550", detail: "20 paid + 7 bonus · 180-day validity" }] as { name: string; type: PackageType | null; price: string; detail: string }[]).map(({ name, type, price, detail }) => <button key={type || "single-session"} className={`package-choice ${package_type === type ? "selected" : ""}`} onClick={() => setPackageChoice(type)}><span className="radio-dot" /><span><b>{name}</b><small>{detail}</small></span><strong>{price}</strong></button>)}</div></section>
+      <section className="checkout-card"><div className="section-title"><div><h2>Payment method</h2><p>Choose how you’d like to complete your order.</p></div></div><div className="payment-method-list">{methods.map((method) => <button key={method.value} className={`payment-option ${payment_method === method.value ? "selected" : ""}`} onClick={() => setPaymentMethod(method.value)}><span className="radio-dot" /><span className="payment-method-icon">{method.icon}</span><span><b>{method.name}</b><small>{method.detail}</small></span><ChevronRight size={16} /></button>)}</div></section>
+    </div><aside className="checkout-total-card"><p className="eyebrow">ORDER SUMMARY</p><div className="summary-line"><span>{course.course_name}</span><b>฿{coach_course.price_per_session}</b></div>{package_type === null ? <div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round(coach_course.price_per_session * membership_level.discount_rate)}</b></div> : <div className="summary-line subdued"><span>{labels.package_type[package_type]} package</span><b>No membership discount</b></div>}<div className="summary-divider" /><div className="summary-total"><span>Total due today</span><b>{package_type === null ? `฿${Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate))}` : package_type === "5+1" ? "฿3,400" : package_type === "20+7" ? "฿17,550" : "฿8,970"}</b></div><PrimaryButton onClick={() => navigate("success")}>Confirm booking <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Preview checkout · no real payment</p><button className="text-link checkout-help" onClick={() => navigate("profile")}><CircleHelp size={14} /> Need a hand?</button></aside></div>
   </div>;
 }
 
-function SuccessScreen({ date, time, navigate }: { date: string; time: string; navigate: (screen: Screen) => void }) {
+function SuccessScreen({ booking_date, start_time, navigate, course, coach }: { booking_date: string; start_time: string; navigate: (screen: Screen) => void; course: (typeof preview_courses)[number]; coach: (typeof preview_coach_listings)[number] }) {
   return <div className="content-wrap success-wrap"><div className="success-top"><span className="success-mark"><Check size={32} /></span><p className="eyebrow">IT’S HAPPENING</p><h1>You’re booked, Alex.</h1><p>This is a sample confirmation for the design preview. No booking has been created or saved.</p></div>
-    <div className="success-ticket"><div className="ticket-heading"><div><span>YOUR SESSION</span><h2>Strength & Conditioning</h2></div><Pill className="booking-status preview-pill">Preview only</Pill></div><div className="ticket-coach"><Photo id={coaches[0].image} alt="" /><span><b>Coach Tan</b><small>Personal trainer · ADVANCED</small></span><div className="stars">★★★★★ <small>4.9</small></div></div><div className="ticket-details"><div><CalendarDays size={17} /><span>{date}<small>Tuesday · 60 minutes</small></span></div><div><Clock3 size={17} /><span>{time}<small>Arrive 10 minutes early</small></span></div><div><MapPin size={17} /><span>Nimman Fitness Club<small>Chiang Mai · 1.2 km away</small></span></div></div><div className="ticket-qr"><div className="fake-qr" aria-label="Illustrative check-in QR code"><QrCode size={76} strokeWidth={1.3} /></div><span><b>Illustrative check-in pass</b><small>This preview code cannot be used at the gym.</small></span></div><div className="ticket-actions"><PrimaryButton onClick={() => navigate("bookings")}>View my bookings <ArrowRight size={15} /></PrimaryButton><button className="button button-outline" onClick={() => navigate("home")}>Back to home</button></div></div>
+    <div className="success-ticket"><div className="ticket-heading"><div><span>YOUR SESSION</span><h2>{course.course_name}</h2></div><Pill className="booking-status preview-pill">Preview only</Pill></div><div className="ticket-coach"><Photo id={coach.ui.image} alt="" /><span><b>{coach.display_name}</b><small>Personal trainer · {labels.coach_level[coach.coach.coach_level]}</small></span><div className="stars">★★★★★ <small>{coach.ui.avg_rating}</small></div></div><div className="ticket-details"><div><CalendarDays size={17} /><span>{formatBookingDate(booking_date)}<small>{course.default_duration} minutes · Chiang Mai</small></span></div><div><Clock3 size={17} /><span>{formatSqlTime(start_time)}<small>Arrive 10 minutes early</small></span></div><div><MapPin size={17} /><span>Nimman Fitness Club<small>Chiang Mai · 1.2 km away</small></span></div></div><div className="ticket-qr"><div className="fake-qr" aria-label="Illustrative check-in QR code"><QrCode size={76} strokeWidth={1.3} /></div><span><b>Illustrative check-in pass</b><small>This preview code cannot be used at the gym.</small></span></div><div className="ticket-actions"><PrimaryButton onClick={() => navigate("bookings")}>View my bookings <ArrowRight size={15} /></PrimaryButton><button className="button button-outline" onClick={() => navigate("home")}>Back to home</button></div></div>
     <button className="text-link success-detail-link" onClick={() => navigate("profile")}>Add to calendar <Plus size={14} /></button>
   </div>;
 }
 
-function BookingsScreen({ tab, setTab, navigate }: { tab: string; setTab: (value: string) => void; navigate: (screen: Screen) => void }) {
-  const tabs = ["Upcoming", "Pending", "Past", "Cancelled"];
-  const visible = bookings.filter((booking) => tab === "Upcoming" ? booking.status === "Upcoming" : tab === "Pending" ? booking.status === "Pending" : tab === "Past" ? booking.status === "Past" : false);
+type ReviewFields = Pick<ReviewCoach, "rating_professional" | "rating_communication" | "rating_punctuality" | "rating_effectiveness" | "comment">;
+
+function ReviewForm({ item, onSubmit }: { item: MemberPreviewBooking; onSubmit: (item: MemberPreviewBooking, reviewFields: ReviewFields) => void }) {
+  const [rating_professional, setRatingProfessional] = useState(0);
+  const [rating_communication, setRatingCommunication] = useState(0);
+  const [rating_punctuality, setRatingPunctuality] = useState(0);
+  const [rating_effectiveness, setRatingEffectiveness] = useState(0);
+  const [comment, setComment] = useState("");
+  const ratings = [
+    ["rating_professional", "Professionalism", rating_professional, setRatingProfessional],
+    ["rating_communication", "Communication", rating_communication, setRatingCommunication],
+    ["rating_punctuality", "Punctuality", rating_punctuality, setRatingPunctuality],
+    ["rating_effectiveness", "Effectiveness", rating_effectiveness, setRatingEffectiveness]
+  ] as const;
+  const avg_rating = (rating_professional + rating_communication + rating_punctuality + rating_effectiveness) / 4;
+  const canSubmit = ratings.every(([, , value]) => value > 0);
+  return <form className="booking-review-form" onSubmit={(event) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+    onSubmit(item, { rating_professional, rating_communication, rating_punctuality, rating_effectiveness, comment: comment.trim() || null });
+  }}>
+    <h3>Share your session review</h3>
+    {ratings.map(([field, label, value, setValue]) => <div className="review-rating-row" key={field}><span>{label}</span><div role="group" aria-label={field}>{[1, 2, 3, 4, 5].map((star) => <button key={star} type="button" aria-label={`${label}: ${star} star${star === 1 ? "" : "s"}`} aria-pressed={value === star} onClick={() => setValue(star)}><Star size={17} fill={value >= star ? "currentColor" : "none"} /></button>)}</div></div>)}
+    <div className="review-average-preview"><span>Average rating preview</span><b>{canSubmit ? avg_rating.toFixed(2) : "Rate all four categories"}</b></div>
+    <label className="review-comment-block">Comment (optional)<textarea name="comment" value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder="Share anything helpful with your coach." /><span>{comment.length} / 1000</span></label>
+    <button className="button button-primary" type="submit" disabled={!canSubmit}>Submit review</button>
+  </form>;
+}
+
+function WrittenReview({ review_coach }: { review_coach: ReviewCoach }) {
+  return <div className="booking-written-review"><div><Star size={15} fill="currentColor" /><b>{review_coach.avg_rating.toFixed(2)}</b><span>Average rating</span></div><p>{review_coach.comment || "No written comment."}</p><small>{new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(review_coach.created_at.replace(" ", "T")))}</small></div>;
+}
+
+function BookingsScreen({ tab, setTab, navigate, previewBookings, onOpenBooking, onSubmitReview }: {
+  tab: string;
+  setTab: (value: string) => void;
+  navigate: (screen: Screen) => void;
+  previewBookings: MemberPreviewBooking[];
+  onOpenBooking: (item: MemberPreviewBooking) => void;
+  onSubmitReview: (item: MemberPreviewBooking, reviewFields: ReviewFields) => void;
+}) {
+  const [reviewDraft, setReviewDraft] = useState<{ booking_id: number; location: "past" | "reviews" } | null>(null);
+  const today = dateNow();
+  const memberBookings = previewBookings.filter(({ booking }) => booking.member_id === 1);
+  const upcoming = memberBookings.filter(({ booking }) => ["PENDING", "CONFIRMED"].includes(booking.status) && booking.booking_date >= today).sort((left, right) => `${left.booking.booking_date} ${left.booking.start_time}`.localeCompare(`${right.booking.booking_date} ${right.booking.start_time}`));
+  const past = memberBookings.filter(({ booking }) => ["COMPLETED", "CANCELLED", "NO_SHOW"].includes(booking.status)).sort((left, right) => `${right.booking.booking_date} ${right.booking.start_time}`.localeCompare(`${left.booking.booking_date} ${left.booking.start_time}`));
+  const visible = tab === "Upcoming" ? upcoming : past;
+  const renderBooking = (item: MemberPreviewBooking) => {
+    const { booking, course } = item;
+    const isReviewing = reviewDraft?.booking_id === booking.booking_id && reviewDraft.location === "past";
+    const amount = item.orders[0]?.final_amount ?? booking.price;
+    const place = booking.service_mode === "GYM" ? item.gym?.gym_name || "Gym" : booking.service_address || labels.district[booking.service_district || "NIMMAN"];
+    return <article className="booking-history-card booking-history-sql-card" key={booking.booking_id}>
+      <button className="booking-card-open" onClick={() => onOpenBooking(item)} aria-label={`View details for ${course.course_name}, ${formatBookingDate(booking.booking_date)}`}>
+        <span className={`history-status-dot ${bookingStatusClasses[booking.status]}`} />
+        <Photo id={item.ui.coach_image} alt="" />
+        <span className="history-main"><span className={`booking-status ${bookingStatusClasses[booking.status]}`}>{labels.booking_status[booking.status]}</span><b>{course.course_name}</b><span>{formatBookingDate(booking.booking_date)} · {formatSqlTime(booking.start_time)}–{formatSqlTime(booking.end_time)}</span><small>{item.display_name} · {place}</small></span>
+        <span className="history-card-end"><b>฿{amount.toLocaleString()}</b><ChevronRight size={18} /></span>
+      </button>
+      {booking.status === "PENDING" && <button className="button button-outline booking-card-pay" onClick={() => onOpenBooking(item)}>View payment details</button>}
+      {booking.status === "COMPLETED" && !item.review_coach && !isReviewing && <button className="button button-outline booking-card-review" onClick={() => setReviewDraft({ booking_id: booking.booking_id, location: "past" })}><Star size={14} /> Leave review</button>}
+      {isReviewing && <ReviewForm item={item} onSubmit={(review_item, reviewFields) => { onSubmitReview(review_item, reviewFields); setReviewDraft(null); }} />}
+      {booking.status === "COMPLETED" && item.review_coach && <WrittenReview review_coach={item.review_coach} />}
+    </article>;
+  };
+  const awaitingReview = past.filter(({ booking, review_coach }) => booking.status === "COMPLETED" && !review_coach);
+  const writtenReviews = past.filter(({ booking, review_coach }) => booking.status === "COMPLETED" && review_coach);
   return <div className="content-wrap narrow-wrap"><PageHeading eyebrow="YOUR TRAINING, YOUR TIME" title="My bookings" detail="Every session is another step toward feeling good." action={<PrimaryButton onClick={() => navigate("explore")}><Plus size={16} /> Book a session</PrimaryButton>} />
-    <div className="booking-tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}{item === "Upcoming" && <span>2</span>}</button>)}</div>
-    <div className="booking-history-list">{visible.length ? visible.map((booking) => <article className="booking-history-card" key={booking.date}><div className={`history-status-dot ${booking.status.toLowerCase()}`} /><Photo id={booking.image} alt="" /><div className="history-main"><span className={`booking-status ${booking.status.toLowerCase()}`}>{booking.status}</span><h3>{booking.title}</h3><p>{booking.date} · {booking.time}</p><span className="history-coach">{booking.coach} <span>·</span> {booking.place}</span></div><div className="history-card-end"><b>฿{booking.price.toLocaleString()}</b><button className="icon-button" onClick={() => navigate("success")} aria-label="View session details"><ChevronRight size={18} /></button></div></article>) : <div className="empty-state"><CalendarDays size={26} /><h3>Nothing here just yet</h3><p>Your {tab.toLowerCase()} sessions will show up here.</p><button className="text-link" onClick={() => navigate("explore")}>Find your next session <ArrowRight size={14} /></button></div>}</div>
+    <div className="booking-tabs">{["Upcoming", "Past"].map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}<span>{item === "Upcoming" ? upcoming.length : past.length}</span></button>)}</div>
+    <div className="booking-history-list">{visible.length ? visible.map(renderBooking) : <div className="empty-state"><CalendarDays size={26} /><h3>{tab === "Upcoming" ? "Nothing booked just yet" : "Your past sessions will appear here"}</h3><p>{tab === "Upcoming" ? "Find a coach and choose a time that works for you." : "Completed and cancelled sessions stay available here."}</p><button className="text-link" onClick={() => navigate("explore")}>Find your next session <ArrowRight size={14} /></button></div>}</div>
+    <section className="booking-reviews-section"><div className="section-title"><div><h2>Session reviews</h2><p>Share feedback or revisit what you’ve written.</p></div></div>
+      <div className="booking-review-list">{awaitingReview.map((item) => <article className="booking-review-row" key={item.booking.booking_id}><span><b>{item.course.course_name}</b><small>{item.display_name} · {formatBookingDate(item.booking.booking_date)}</small></span>{reviewDraft?.booking_id === item.booking.booking_id && reviewDraft.location === "reviews" ? <ReviewForm item={item} onSubmit={(review_item, reviewFields) => { onSubmitReview(review_item, reviewFields); setReviewDraft(null); }} /> : <button className="text-link" onClick={() => setReviewDraft({ booking_id: item.booking.booking_id, location: "reviews" })}><Star size={14} /> Leave review</button>}</article>)}
+        {writtenReviews.map((item) => <article className="booking-review-row" key={item.booking.booking_id}><span><b>{item.course.course_name}</b><small>{item.display_name} · {formatBookingDate(item.booking.booking_date)}</small></span>{item.review_coach && <WrittenReview review_coach={item.review_coach} />}</article>)}
+        {!awaitingReview.length && !writtenReviews.length && <div className="booking-review-empty">Completed sessions eligible for review will appear here.</div>}
+      </div>
+    </section>
     <div className="booking-help-strip"><CircleHelp size={17} /><span>Plans change. Need to adjust your session?</span><button className="text-link" onClick={() => navigate("profile")}>Get support</button></div>
   </div>;
 }
 
-function PackagesScreen({ membership, setMembership, notify, onChoose }: { membership: string; setMembership: (value: string) => void; notify: (message: string) => void; onChoose: (name: string) => void }) {
-  const plans = [
+function BookingDetailScreen({ item, onBack, onPayNow, onSubmitReview, onCancel }: {
+  item: MemberPreviewBooking;
+  onBack: () => void;
+  onPayNow: () => void;
+  onSubmitReview: (item: MemberPreviewBooking, reviewFields: ReviewFields) => void;
+  onCancel: (item: MemberPreviewBooking, cancel_reason: string) => void;
+}) {
+  const { booking } = item;
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    if (booking.status !== "PENDING" || !booking.expires_at) return;
+    const update = () => setRemainingSeconds(Math.max(0, Math.floor((new Date(booking.expires_at as string).getTime() - Date.now()) / 1000)));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [booking.expires_at, booking.status]);
+  const order = item.orders[0];
+  const discount = order?.discount || 0;
+  const final_amount = order?.final_amount ?? Math.max(0, booking.price - discount);
+  const placeText = booking.service_mode === "GYM"
+    ? `${item.gym?.gym_name || "Gym"} · ${item.gym?.address || ""} · ${item.gym ? labels.district[item.gym.district] : ""}`
+    : `${booking.service_address || "Home service"} · ${labels.district[booking.service_district || "NIMMAN"]}`;
+  const formattedRemaining = remainingSeconds === null ? "" : `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`;
+  return <div className="content-wrap narrow-wrap booking-detail-wrap"><button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Back to sessions</button>
+    <section className="booking-detail-header"><Photo id={item.ui.coach_image} alt="" /><div><span className="eyebrow">YOUR TRAINING SESSION</span><h1>{item.display_name}</h1><div><Pill>{labels.coach_level[item.coach.coach_level]}</Pill><span className={`booking-status ${bookingStatusClasses[booking.status]}`}>{labels.booking_status[booking.status]}</span></div></div></section>
+    <div className="booking-detail-grid"><section className="booking-detail-card"><h2>Session</h2><dl><div><dt>Course</dt><dd>{item.course.course_name}</dd></div><div><dt>Date</dt><dd>{formatBookingDate(booking.booking_date)}</dd></div><div><dt>Time</dt><dd>{formatSqlTime(booking.start_time)} – {formatSqlTime(booking.end_time)}</dd></div><div><dt>Duration</dt><dd>{booking.duration_minutes} minutes</dd></div><div><dt>Break</dt><dd>{booking.break_minutes} minutes</dd></div><div><dt>Service mode</dt><dd>{labels.service_mode[booking.service_mode]}</dd></div></dl></section>
+      <section className="booking-detail-card"><h2>Place</h2><p>{placeText}</p>{booking.service_mode === "HOME" && booking.service_address && <p>{booking.service_address}</p>}</section>
+      <section className="booking-detail-card"><h2>Payment</h2><dl><div><dt>Price</dt><dd>฿{booking.price.toLocaleString()}</dd></div><div><dt>Discount</dt><dd>−฿{discount.toLocaleString()}</dd></div><div><dt>Final amount</dt><dd>฿{final_amount.toLocaleString()}</dd></div><div><dt>Payment method</dt><dd>{order?.payment_method ? labels.payment_method[order.payment_method] : "Not selected"}</dd></div><div><dt>Payment status</dt><dd>{order ? labels.payment_status[order.payment_status] : "Unpaid"}</dd></div><div><dt>Payment time</dt><dd>{order?.payment_time || "Not paid"}</dd></div>{booking.package_id !== null && item.member_package && <><div><dt>Package</dt><dd>{labels.package_type[item.member_package.package_type]}</dd></div><div><dt>Remaining sessions</dt><dd>{item.member_package.remaining_sessions}</dd></div></>}</dl></section>
+      <section className="booking-detail-card"><h2>Status information</h2>{booking.status === "PENDING" && <p>Payment expires {booking.expires_at || "soon"}{remainingSeconds !== null && <> · {formattedRemaining} remaining</>}{remainingSeconds === 0 && " · Payment window expired"}</p>}{booking.status === "CANCELLED" && <dl><div><dt>Cancelled by</dt><dd>{booking.cancelled_by || "Not recorded"}</dd></div><div><dt>Reason</dt><dd>{booking.cancel_reason || "Not provided"}</dd></div><div><dt>Cancelled at</dt><dd>{booking.cancelled_at || "Not recorded"}</dd></div></dl>}{booking.status === "COMPLETED" && <p>Completed {booking.completed_at || "as recorded in this preview"}.</p>}{booking.status === "CONFIRMED" && <p>Your coach has confirmed this session.</p>}{booking.status === "NO_SHOW" && <p>This session is marked as a no-show.</p>}</section></div>
+    {booking.status === "COMPLETED" && <section className="booking-detail-card booking-detail-review"><h2>Review</h2>{item.review_coach ? <WrittenReview review_coach={item.review_coach} /> : <ReviewForm item={item} onSubmit={onSubmitReview} />}</section>}
+    <div className="booking-detail-actions">{booking.status === "PENDING" && <PrimaryButton onClick={onPayNow}>Pay now <ArrowRight size={15} /></PrimaryButton>}{["PENDING", "CONFIRMED"].includes(booking.status) && <button className="button button-outline" onClick={() => setCancelDialogOpen(true)}>Cancel session</button>}{booking.status === "COMPLETED" && !item.review_coach && <span>Leave your review above to help your coach.</span>}</div>
+    {cancelDialogOpen && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="cancel-booking-title" className="cancel-booking-dialog"><button className="icon-button dialog-close" aria-label="Close cancellation dialog" onClick={() => setCancelDialogOpen(false)}><X size={18} /></button><h2 id="cancel-booking-title">Before you cancel</h2><p>{new Date(`${booking.booking_date}T${booking.start_time}`).getTime() - Date.now() >= 24 * 60 * 60 * 1000 ? "This session is more than 24 hours away. Cancelling now is free; a payment refund or package session return is reflected in this preview." : "This session starts within 24 hours. You can still cancel, but the payment is non-refundable and package credit is not returned."}</p><div className="cancel-dialog-actions"><button className="button button-outline" onClick={() => setCancelDialogOpen(false)}>Keep session</button><button className="button button-primary" onClick={() => { onCancel(item, "Cancelled by member"); setCancelDialogOpen(false); }}>Confirm cancellation</button></div></section></div>}
+  </div>;
+}
+
+function PackagesScreen({ membership_level, onChoose }: { membership_level: MembershipLevel; onChoose: (name: PackageType) => void }) {
+  const plans: { packageType: PackageType; sessions: string; price: string; each: string; saving: string; popular: boolean }[] = [
     { packageType: "5+1", sessions: "5+1 Sessions", price: "฿3,400", each: "฿680 / paid session", saving: "Save 5%", popular: false },
     { packageType: "10+3", sessions: "10+3 Sessions", price: "฿8,970", each: "฿690 / session", saving: "Save 14%", popular: true },
     { packageType: "20+7", sessions: "20+7 Sessions", price: "฿17,550", each: "฿650 / session", saving: "Save 20%", popular: false }
   ];
   return <div className="content-wrap narrow-wrap"><div className="packages-hero"><div><Pill className="pill-glass"><Sparkles size={13} /> A little more momentum</Pill><h1>More sessions.<br />More of what moves you.</h1><p>Make room for the progress you came for.</p></div><div className="package-hero-person"><span>YOUR NEXT CHAPTER</span><Activity size={68} strokeWidth={1.1} /></div></div>
     <div className="section-title package-section-title"><div><h2>Session packages</h2><p>One-on-one time with a coach you choose.</p></div><span className="package-validity"><Clock3 size={14} /> 180 days to use</span></div>
-    <div className="package-plan-grid">{plans.map((plan) => <article key={plan.packageType} className={`package-plan ${plan.popular ? "popular" : ""}`}><span className="popular-ribbon" hidden={!plan.popular}>MOST LOVED</span><span className="plan-session-icon"><Dumbbell size={20} /></span><span className="plan-session-count">{plan.sessions}</span><span className="plan-price">{plan.price}</span><span className="plan-each">{plan.each}</span><Pill className="savings-pill">{plan.saving}</Pill><button className={`button ${plan.popular ? "button-primary" : "button-outline"}`} onClick={() => { setMembership("Gold Member"); onChoose(plan.packageType); }}>View package <ArrowRight size={14} /></button></article>)}</div>
-    <section className="membership-progress-card"><div className="membership-medal"><Trophy size={24} /></div><div className="membership-progress-copy"><p className="eyebrow">YOUR MEMBERSHIP</p><h2>{membership}</h2><p>Keep showing up. The next tier is within reach.</p><div className="membership-track"><i /></div><small>฿2,150 until Platinum <span>3 / 5</span></small></div><div className="membership-discount"><b>10%</b><span>session discount</span></div></section>
+    <div className="package-plan-grid">{plans.map((plan) => <article key={plan.packageType} className={`package-plan ${plan.popular ? "popular" : ""}`}><span className="popular-ribbon" hidden={!plan.popular}>MOST LOVED</span><span className="plan-session-icon"><Dumbbell size={20} /></span><span className="plan-session-count">{plan.sessions}</span><span className="plan-price">{plan.price}</span><span className="plan-each">{plan.each}</span><Pill className="savings-pill">{plan.saving}</Pill><button className={`button ${plan.popular ? "button-primary" : "button-outline"}`} onClick={() => onChoose(plan.packageType)}>View package <ArrowRight size={14} /></button></article>)}</div>
+    <section className="membership-progress-card"><div className="membership-medal"><Trophy size={24} /></div><div className="membership-progress-copy"><p className="eyebrow">YOUR MEMBERSHIP</p><h2>{membership_level.level_name}</h2><p>Keep showing up. The next tier is within reach.</p><div className="membership-track"><i /></div><small>฿2,150 until Platinum <span>3 / 5</span></small></div><div className="membership-discount"><b>{membership_level.discount_rate * 100}%</b><span>session discount</span></div></section>
     <div className="package-footnote"><ShieldCheck size={15} /><span>Unused sessions stay on your account. Review the package terms at checkout.</span></div>
   </div>;
 }
@@ -560,13 +831,49 @@ function ReviewsScreen({
   </div>;
 }
 
-function ProgressScreen({ tab, setTab, navigate, account }: { tab: string; setTab: (value: string) => void; navigate: (screen: Screen) => void; account: PublicDemoAccount }) {
+function ProgressScreen({ tab, setTab, navigate, account, previewBookings, onOpenBooking }: {
+  tab: string;
+  setTab: (value: string) => void;
+  navigate: (screen: Screen) => void;
+  account: PublicDemoAccount;
+  previewBookings: MemberPreviewBooking[];
+  onOpenBooking: (item: MemberPreviewBooking) => void;
+}) {
   const [goalDone, setGoalDone] = useState(false);
-  return <div className="content-wrap narrow-wrap"><PageHeading eyebrow="SMALL STEPS, BIG FEELING" title="Look how far you’ve come." detail="Your effort, your pace, your progress." action={<button className="button button-outline" onClick={() => navigate("bookings")}><CalendarDays size={15} /> Log a workout</button>} />
+  const [weekAnchor, setWeekAnchor] = useState(dateNow());
+  const [planDate, setPlanDate] = useState(dateNow());
+  const monday = dateOffset(weekAnchor, 1 - weekdayForDate(weekAnchor));
+  const weekDates = Array.from({ length: 7 }, (_, index) => dateOffset(monday, index));
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  const completedThisWeek = previewBookings.filter(({ booking }) => booking.member_id === 1 && booking.status === "COMPLETED" && booking.booking_date >= weekStart && booking.booking_date <= weekEnd);
+  const planBookings = previewBookings.filter(({ booking }) => booking.member_id === 1 && ["PENDING", "CONFIRMED"].includes(booking.status) && booking.booking_date >= dateNow() && booking.booking_date <= dateOffset(dateNow(), 30)).sort((left, right) => `${left.booking.booking_date} ${left.booking.start_time}`.localeCompare(`${right.booking.booking_date} ${right.booking.start_time}`));
+  const firstWeekday = weekdayForDate(dateNow()) - 1;
+  const planDays = Array.from({ length: Math.ceil((firstWeekday + 31) / 7) * 7 }, (_, index) => {
+    const planDateValue = dateOffset(dateNow(), index - firstWeekday);
+    return planDateValue >= dateNow() && planDateValue <= dateOffset(dateNow(), 30) ? planDateValue : "";
+  });
+  const planAgenda = planBookings.filter(({ booking }) => booking.booking_date === planDate);
+  const timeRows = Array.from({ length: 16 }, (_, index) => index + 6);
+  const weekLabel = `${formatBookingDate(weekStart)} – ${formatBookingDate(weekEnd)}`;
+  return <div className="content-wrap narrow-wrap"><PageHeading eyebrow="SMALL STEPS, BIG FEELING" title="Look how far you’ve come." detail="Your effort, your pace, your progress." />
     <div className="progress-member-strip"><div className="member-avatar large">{account.display_name.slice(0, 1).toUpperCase()}</div><span><b>{account.display_name}</b><small><Pill className="gold-pill"><Award size={12} /> Member</Pill></small></span><span className="progress-updated">Updated today</span></div>
     <div className="progress-tabs">{["Overview", "Metrics", "Goals"].map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
     {tab === "Overview" && <><section className="metric-section"><div className="section-title"><div><h2>Your body, your baseline</h2><p>Last updated after your check-in.</p></div><button className="text-link" onClick={() => setTab("Metrics")}>View all <ArrowRight size={14} /></button></div><div className="body-metric-grid"><div><span>Weight</span><b>68 <small>kg</small></b><small>−1.2 kg this month</small></div><div><span>Body fat</span><b>12<small>%</small></b><small>Steady this month</small></div><div><span>BMI</span><b>22.1</b><small>Healthy range</small></div></div></section>
-      <section className="metric-section"><div className="section-title"><div><h2>Weekly activity</h2><p>Minutes you’ve moved this week.</p></div><Pill>3 of 4 sessions</Pill></div><div className="activity-chart">{[["M", 36], ["T", 70], ["W", 92], ["T", 52], ["F", 28], ["S", 78], ["S", 38]].map(([day, value], index) => <div className="activity-day" key={`${day}-${index}`}><span>{value}%</span><i style={{ height: `${value}%` }} /><small>{day}</small></div>)}</div></section>
+      <section className="metric-section"><div className="section-title"><div><h2>Weekly activity</h2><p>Completed training by day and hour.</p></div><Pill>{completedThisWeek.length} completed sessions</Pill></div><div className="progress-week-toolbar"><button className="icon-button" aria-label="Previous week" onClick={() => setWeekAnchor(dateOffset(weekAnchor, -7))}><ChevronLeft size={18} /></button><b>{weekLabel}</b><button className="icon-button" aria-label="Next week" onClick={() => setWeekAnchor(dateOffset(weekAnchor, 7))}><ChevronRight size={18} /></button></div><div className="progress-week-grid" role="table" aria-label="Weekly completed session timetable"><div className="progress-week-head" role="row"><span role="columnheader">Time</span>{weekDates.map((day) => <span role="columnheader" key={day}>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(`${day}T12:00:00`))}<small>{Number(day.slice(-2))}</small></span>)}</div>{timeRows.map((hour) => <div className="progress-week-row" role="row" key={hour}><span className="progress-week-hour" role="rowheader">{String(hour).padStart(2, "0")}:00</span>{weekDates.map((day) => {
+        const sessions = completedThisWeek.filter(({ booking }) => booking.booking_date === day && Number(booking.start_time.slice(0, 2)) === hour);
+        return <div className="progress-week-cell" role="cell" key={`${day}-${hour}`}>{sessions.map((item) => <button className="progress-timetable-session" key={item.booking.booking_id} onClick={() => onOpenBooking(item)}><b>{formatSqlTime(item.booking.start_time)}–{formatSqlTime(item.booking.end_time)}</b><span>{item.course.course_name}</span><small>{item.display_name}</small></button>)}</div>;
+      })}</div>)}</div>{!completedThisWeek.length && <p className="progress-grid-empty">No completed sessions in this week yet.</p>}</section>
+      <section className="metric-section my-plan-section"><div className="section-title"><div><h2>My plan</h2><p>Upcoming bookings for the next 30 days.</p></div><Pill>{planBookings.length} sessions</Pill></div><div className="my-plan-calendar"><div className="my-plan-weekdays">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="my-plan-days">{planDays.map((day, index) => {
+        const sessionCount = day ? planBookings.filter(({ booking }) => booking.booking_date === day).length : 0;
+        return day ? <button className={`my-plan-day ${day === planDate ? "selected" : ""} ${sessionCount ? "has-plan-session" : ""}`} key={day} onClick={() => setPlanDate(day)} aria-pressed={day === planDate}><span>{Number(day.slice(-2))}</span>{sessionCount > 0 && <i aria-label={`${sessionCount} sessions`} />}</button> : <span className="my-plan-day-empty" key={`blank-${index}`} />;
+      })}</div></div><div className="my-plan-agenda"><h3>{formatBookingDate(planDate)}</h3>{planAgenda.length ? planAgenda.map((item) => {
+        const amount = item.orders[0]?.final_amount ?? item.booking.price;
+        const place = item.booking.service_mode === "GYM"
+          ? `${item.gym?.gym_name || "Gym"} · ${item.gym ? labels.district[item.gym.district] : ""}`
+          : `${item.booking.service_address || "Home service"} · ${labels.district[item.booking.service_district || "NIMMAN"]}`;
+        return <button className="my-plan-session" key={item.booking.booking_id} onClick={() => onOpenBooking(item)}><span className="my-plan-session-time">{formatSqlTime(item.booking.start_time)} – {formatSqlTime(item.booking.end_time)}</span><span><b>{item.course.course_name}</b><small>{item.display_name} · {place}</small><small>{item.booking.duration_minutes} min · {labels.service_mode[item.booking.service_mode]} · {labels.booking_status[item.booking.status]} · {item.booking.package_id ? `Package #${item.booking.package_id}` : "Single session"}</small></span><strong>฿{item.booking.price.toLocaleString()} · ฿{amount.toLocaleString()} total</strong><ChevronRight size={17} /></button>;
+      }) : <div className="my-plan-empty">No sessions planned for this day. Choose another date or book a session.</div>}</div></section>
       <section className="metric-section"><div className="section-title"><div><h2>Training goals</h2><p>Keep your next step in sight.</p></div><button className="text-link" onClick={() => setTab("Goals")}>All goals <ArrowRight size={14} /></button></div><div className="goal-card"><span className="goal-icon"><Target size={20} /></span><div><b>Build muscle</b><p>Strength & Conditioning plan</p><div className="goal-progress"><i /></div><small>{goalDone ? "Goal complete · nice work!" : "7 of 10 sessions"} <b>{goalDone ? "100%" : "70%"}</b></small></div><button className="icon-button" onClick={() => setGoalDone(!goalDone)} aria-label={goalDone ? "Reset demo goal" : "Complete demo goal"}>{goalDone ? <CheckCircle2 size={18} /> : <ChevronRight size={18} />}</button></div></section></>}
     {tab === "Metrics" && <section className="metric-section"><div className="section-title"><div><h2>Body metrics</h2><p>Your latest check-in compared with last month.</p></div><Pill>April 2026</Pill></div><div className="body-metric-grid metrics-detail">{[["Weight", "68 kg", "−1.2 kg"], ["Body fat", "12%", "−0.8%"], ["BMI", "22.1", "Healthy"], ["Sessions", "12", "+3 this month"], ["Active time", "8.5 hrs", "+1.2 hrs"], ["Coach rating", "4.9", "128 reviews"]].map(([name, value, note]) => <div key={name}><span>{name}</span><b>{value}</b><small>{note}</small></div>)}</div></section>}
     {tab === "Goals" && <section className="metric-section"><div className="section-title"><div><h2>Your training goals</h2><p>Progress that’s yours to define.</p></div><button className="text-link" onClick={() => navigate("profile")}><Plus size={15} /> Add a goal</button></div>{[["Build muscle", "7 of 10 sessions", "70%"], ["Move more each week", "3 of 4 sessions", "75%"], ["Feel more flexible", "4 of 8 sessions", "50%"]].map(([goal, sub, percent]) => <div className="goal-card goal-card-spaced" key={goal}><span className="goal-icon"><Target size={20} /></span><div><b>{goal}</b><p>{sub}</p><div className="goal-progress"><i style={{ width: percent }} /></div><small>{percent} complete</small></div><button className="icon-button" onClick={() => setGoalDone(!goalDone)}><MoreHorizontal size={18} /></button></div>)}</section>}

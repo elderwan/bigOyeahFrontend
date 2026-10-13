@@ -1,11 +1,11 @@
 import type { BookingStatus } from "@/lib/database";
 
 const labels: Record<BookingStatus, string> = {
-  PENDING: "รอชำระเงิน",
-  CONFIRMED: "ยืนยันแล้ว",
-  CANCELLED: "ยกเลิก",
-  COMPLETED: "เสร็จสิ้น",
-  NO_SHOW: "ไม่มาตามนัด"
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+  CANCELLED: "Cancelled",
+  COMPLETED: "Completed",
+  NO_SHOW: "No-show"
 };
 
 const colors: Record<BookingStatus, string> = {

@@ -5,7 +5,7 @@ export const demoCoach: Coach = {
   coach_no: "1001",
   user_id: 12,
   coach_level: "ADVANCED",
-  bio: "ผู้ฝึกสอนส่วนบุคคลที่เชี่ยวชาญด้านการสร้างกล้ามเนื้อและการเคลื่อนไหว",
+  bio: "A personal trainer specializing in strength building and functional movement.",
   service_mode: "BOTH",
   break_interval: 10,
   years_experience: 6,
@@ -21,7 +21,7 @@ export const demoCourses: Course[] = [
   {
     course_id: 1,
     course_name: "Strength Training",
-    description: "โปรแกรมสร้างกล้ามเนื้อและเพิ่มความแข็งแรง",
+    description: "Build muscle and increase overall strength.",
     equipment: "Dumbbells, Barbell",
     difficulty: "INTERMEDIATE",
     default_duration: 60,
@@ -32,7 +32,7 @@ export const demoCourses: Course[] = [
   {
     course_id: 2,
     course_name: "Functional Movement",
-    description: "ฝึกการเคลื่อนไหวเพื่อใช้ในชีวิตประจำวัน",
+    description: "Improve the movements you use in everyday life.",
     equipment: "Mat, Kettlebell",
     difficulty: "BEGINNER",
     default_duration: 60,
@@ -46,7 +46,7 @@ export const demoGyms: Gym[] = [
   {
     gym_id: 1,
     gym_name: "Nimman Fitness Club",
-    address: "ถนนนิมมานเหมินท์ เชียงใหม่",
+    address: "Nimmanhaemin Road, Chiang Mai",
     district: "NIMMAN",
     phone: "053-000-001",
     facilities: "Free weights, Cardio, Sauna",
@@ -61,7 +61,7 @@ export const demoGyms: Gym[] = [
   {
     gym_id: 2,
     gym_name: "Old City Training Lab",
-    address: "ถนนราชดำเนิน เมืองเชียงใหม่",
+    address: "Ratchadamnoen Road, Chiang Mai",
     district: "OLD_CITY",
     phone: "053-000-002",
     facilities: "Functional area, Yoga studio",
@@ -115,7 +115,7 @@ export const demoBookings: Booking[] = [
     break_minutes: 10,
     service_mode: "HOME",
     service_district: "NIMMAN",
-    service_address: "ถนนห้วยแก้ว เชียงใหม่",
+    service_address: "Huay Kaew Road, Chiang Mai",
     price: 1100,
     status: "PENDING",
     expires_at: "2026-10-12T18:35:00+07:00",
