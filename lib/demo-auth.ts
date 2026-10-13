@@ -3,6 +3,7 @@ import {
   apiRegister,
   apiGetMemberProfile,
   apiUpdateMemberProfile,
+  apiGetCoachMe,
   setAccessToken,
   clearAccessToken,
   getAccessToken,
@@ -25,6 +26,7 @@ export interface DemoAccount {
   weight_kg: number | null;
   fitness_goal: string | null;
   coach_no?: string;
+  coach_id?: number;
   password_hash: string;
   // Live API Profile fields
   member_id?: number;
@@ -439,6 +441,18 @@ export async function signInDemoUser(
           }
         } catch {
           // Profile enrichment optional
+        }
+      } else if (authData.user.role === "COACH") {
+        try {
+          const coach = await apiGetCoachMe();
+          if (coach) {
+            liveProfile = {
+              coach_id: coach.coach_id,
+              coach_no: coach.coach_no || String(coach.coach_id)
+            };
+          }
+        } catch {
+          // Coach profile enrichment optional
         }
       }
 

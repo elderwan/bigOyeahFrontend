@@ -464,7 +464,7 @@ export async function apiGetMemberPackages(): Promise<any[]> {
   return res.data || [];
 }
 
-export async function apiPurchasePackage(payload: { package_type: string; gym_id?: number }): Promise<any> {
+export async function apiPurchasePackage(payload: { package_type: string; payment_method?: string; gym_id?: number }): Promise<any> {
   const res = await apiFetch<any>("/members/me/packages/purchase", {
     method: "POST",
     requiresAuth: true,
@@ -521,17 +521,20 @@ export async function apiDeletePaymentMethod(id: number): Promise<void> {
   });
 }
 
-export async function apiGetMemberMessages(otherUserId?: number): Promise<any[]> {
-  const query = otherUserId ? `?other_user_id=${otherUserId}` : "";
+export async function apiGetMemberMessages(coachId?: number): Promise<any[]> {
+  const query = coachId ? `?coach_id=${coachId}` : "";
   const res = await apiFetch<any[]>(`/members/me/messages${query}`, { requiresAuth: true });
   return res.data || [];
 }
 
-export async function apiSendMessage(payload: { receiver_id: number; content: string }): Promise<any> {
+export async function apiSendMessage(payload: { coach_id: number; message_text: string } | { receiver_id: number; content: string }): Promise<any> {
+  const body = "coach_id" in payload
+    ? payload
+    : { coach_id: payload.receiver_id, message_text: payload.content };
   const res = await apiFetch<any>("/members/me/messages", {
     method: "POST",
     requiresAuth: true,
-    body: JSON.stringify(payload)
+    body: JSON.stringify(body)
   });
   return res.data;
 }
@@ -717,16 +720,20 @@ export async function apiUpdateCoachStatus(coachId: number, status: "ACTIVE" | "
 }
 
 export async function apiGetAdminBookings(params?: {
+  search?: string;
   status?: string;
   coach_id?: number;
+  member_id?: number;
   date_from?: string;
   date_to?: string;
   page?: number;
   page_size?: number;
 }): Promise<any> {
   const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.append("search", params.search);
   if (params?.status) searchParams.append("status", params.status);
   if (params?.coach_id) searchParams.append("coach_id", String(params.coach_id));
+  if (params?.member_id) searchParams.append("member_id", String(params.member_id));
   if (params?.date_from) searchParams.append("date_from", params.date_from);
   if (params?.date_to) searchParams.append("date_to", params.date_to);
   if (params?.page) searchParams.append("page", String(params.page));
@@ -737,6 +744,348 @@ export async function apiGetAdminBookings(params?: {
   return res.data;
 }
 
+export async function apiGetAdminBookingDetail(bookingId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/bookings/${bookingId}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiCreateAdminBooking(payload: {
+  member_id: number;
+  coach_id: number;
+  course_id: number;
+  booking_date: string;
+  start_time: string;
+  duration_minutes: number;
+  break_minutes?: number;
+  service_mode: "GYM" | "HOME";
+  gym_id?: number | null;
+  service_district?: string | null;
+  service_address?: string | null;
+  price: number;
+  status?: string;
+  package_id?: number | null;
+  payment_method?: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/bookings", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminBooking(bookingId: number, payload: any): Promise<any> {
+  const res = await apiFetch<any>(`/admin/bookings/${bookingId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminBookingStatus(bookingId: number, status: string): Promise<any> {
+  const res = await apiFetch<any>(`/admin/bookings/${bookingId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ status })
+  });
+  return res.data;
+}
+
+export async function apiCancelAdminBooking(bookingId: number, payload?: { cancel_reason?: string; refund_issued?: boolean }): Promise<any> {
+  const res = await apiFetch<any>(`/admin/bookings/${bookingId}/cancel`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({
+      cancel_reason: payload?.cancel_reason || "Cancelled by admin",
+      refund_issued: payload?.refund_issued ?? true
+    })
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Course Endpoints
+// -------------------------------------------------------------
+
+export async function apiCreateAdminCourse(payload: {
+  course_name: string;
+  description?: string;
+  equipment?: string;
+  difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  default_duration: number;
+  is_active?: number;
+  assigned_coach_ids?: number[];
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/courses", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminCourse(courseId: number, payload: any): Promise<any> {
+  const res = await apiFetch<any>(`/admin/courses/${courseId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeleteAdminCourse(courseId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/courses/${courseId}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+export async function apiUpdateCourseStatus(courseId: number, isActive: number | boolean): Promise<any> {
+  const res = await apiFetch<any>(`/admin/courses/${courseId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Location Endpoints
+// -------------------------------------------------------------
+
+export async function apiCreateAdminLocation(payload: {
+  gym_name: string;
+  address: string;
+  district: string;
+  phone: string;
+  facilities?: string;
+  opening_time?: string;
+  closing_time?: string;
+  latitude?: number;
+  longitude?: number;
+  is_active?: number;
+  assigned_coach_ids?: number[];
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/locations", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminLocation(gymId: number, payload: any): Promise<any> {
+  const res = await apiFetch<any>(`/admin/locations/${gymId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeleteAdminLocation(gymId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/locations/${gymId}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+export async function apiUpdateLocationStatus(gymId: number, isActive: number | boolean): Promise<any> {
+  const res = await apiFetch<any>(`/admin/locations/${gymId}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Trainer Endpoints
+// -------------------------------------------------------------
+
+export async function apiGetAdminCoachDetail(coachId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiCreateAdminCoach(payload: {
+  username: string;
+  password?: string;
+  display_name: string;
+  email: string;
+  phone: string;
+  coach_no: string;
+  coach_level: string;
+  service_mode: string;
+  break_interval?: number;
+  years_experience?: number;
+  certifications?: string;
+  bio?: string;
+  assigned_location_ids?: number[];
+  assigned_course_ids?: number[];
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/coaches", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({
+      password: "DemoPass123!",
+      break_interval: 10,
+      years_experience: 1,
+      ...payload
+    })
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminCoach(coachId: number, payload: any): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeleteAdminCoach(coachId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+export async function apiGetCoachVerificationDocs(coachId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}/verification-documents`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiVerifyCoach(coachId: number, verified: boolean, notes?: string): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}/verify`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({ verified, notes: notes || "Verified by admin" })
+  });
+  return res.data;
+}
+
+export async function apiAssignCoachCourse(coachId: number, payload: { course_id: number; price_per_session: number; is_active?: number }): Promise<any> {
+  const res = await apiFetch<any>(`/admin/coaches/${coachId}/courses`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Member Endpoints
+// -------------------------------------------------------------
+
+export async function apiGetAdminMemberDetail(userId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/members/${userId}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiCreateAdminMember(payload: {
+  username: string;
+  password?: string;
+  display_name: string;
+  email: string;
+  phone: string;
+  level_id?: number;
+  gender?: string | null;
+  birth_date?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  fitness_goal?: string | null;
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/members", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({
+      password: "DemoPass123!",
+      level_id: 1,
+      ...payload
+    })
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminMember(userId: number, payload: any): Promise<any> {
+  const res = await apiFetch<any>(`/admin/members/${userId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeleteAdminMember(userId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/members/${userId}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Package Endpoints
+// -------------------------------------------------------------
+
+export async function apiCreateAdminPackage(payload: {
+  package_type: string;
+  paid_sessions: number;
+  bonus_sessions: number;
+  price: number;
+  validity_days: number;
+  is_active?: number;
+  description?: string;
+  terms?: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/packages", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiUpdateAdminPackage(packageType: string, payload: any): Promise<any> {
+  const encoded = encodeURIComponent(packageType);
+  const res = await apiFetch<any>(`/admin/packages/${encoded}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiDeleteAdminPackage(packageType: string): Promise<any> {
+  const encoded = encodeURIComponent(packageType);
+  const res = await apiFetch<any>(`/admin/packages/${encoded}`, {
+    method: "DELETE",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+export async function apiUpdatePackageStatus(packageType: string, isActive: number | boolean): Promise<any> {
+  const encoded = encodeURIComponent(packageType);
+  const res = await apiFetch<any>(`/admin/packages/${encoded}/status`, {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin KPI & Analytics Endpoints
+// -------------------------------------------------------------
+
 export async function apiGetAdminKpi(year?: number, month?: number): Promise<any> {
   const searchParams = new URLSearchParams();
   if (year) searchParams.append("year", String(year));
@@ -744,6 +1093,16 @@ export async function apiGetAdminKpi(year?: number, month?: number): Promise<any
   const query = searchParams.toString();
   const res = await apiFetch<any>(`/admin/kpi${query ? `?${query}` : ""}`, { requiresAuth: true });
   return res.data;
+}
+
+export async function apiGetAdminKpiRecords(year?: number, month?: number, coachId?: number): Promise<any[]> {
+  const searchParams = new URLSearchParams();
+  if (year) searchParams.append("year", String(year));
+  if (month) searchParams.append("month", String(month));
+  if (coachId) searchParams.append("coach_id", String(coachId));
+  const query = searchParams.toString();
+  const res = await apiFetch<any[]>(`/admin/kpi/records${query ? `?${query}` : ""}`, { requiresAuth: true });
+  return res.data || [];
 }
 
 export async function apiUpdateKpiRule(
@@ -758,36 +1117,192 @@ export async function apiUpdateKpiRule(
   return res.data;
 }
 
+export async function apiUpdateKpiRecord(recordId: number, payload: {
+  total_hours?: number;
+  completed_sessions?: number;
+  avg_rating?: number;
+  retention_rate?: number;
+  is_achieved?: number | boolean;
+}): Promise<any> {
+  const res = await apiFetch<any>(`/admin/kpi/records/${recordId}`, {
+    method: "PUT",
+    requiresAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      is_achieved: typeof payload.is_achieved === "boolean" ? (payload.is_achieved ? 1 : 0) : payload.is_achieved
+    })
+  });
+  return res.data;
+}
+
+export async function apiRecalculateKpi(year: number = 2026, month: number = 4): Promise<any> {
+  const res = await apiFetch<any>(`/admin/kpi/recalculate?year=${year}&month=${month}`, {
+    method: "POST",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Admin Revenue, Activity, Settings & Reports
+// -------------------------------------------------------------
+
 export async function apiGetAdminRevenue(days: number = 30): Promise<any> {
   const res = await apiFetch<any>(`/admin/revenue?days=${days}`, { requiresAuth: true });
   return res.data;
 }
 
-export async function apiUpdateLocationStatus(gymId: number, isActive: number | boolean): Promise<any> {
-  const res = await apiFetch<any>(`/admin/locations/${gymId}/status`, {
+export async function apiGetAdminActivity(limit: number = 10): Promise<any[]> {
+  const res = await apiFetch<any[]>(`/admin/activity?limit=${limit}`, { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiGetAdminAuditLogDetail(logId: number): Promise<any> {
+  const res = await apiFetch<any>(`/admin/audit-log/${logId}`, { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiGetAdminSettings(): Promise<any> {
+  const res = await apiFetch<any>("/admin/settings", { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateAdminSettings(payload: {
+  require_coach_verification?: boolean;
+  booking_reminder_hours?: number;
+  package_catalogue_enabled?: boolean;
+  audit_logging_enabled?: boolean;
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/settings", {
     method: "PATCH",
     requiresAuth: true,
-    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+    body: JSON.stringify(payload)
   });
   return res.data;
 }
 
-export async function apiUpdateCourseStatus(courseId: number, isActive: number | boolean): Promise<any> {
-  const res = await apiFetch<any>(`/admin/courses/${courseId}/status`, {
-    method: "PATCH",
+export async function apiGenerateReport(payload: {
+  report_name: string;
+  date_from: string;
+  date_to: string;
+  group_by?: "coach" | "course" | "day";
+  measures?: string[];
+}): Promise<any> {
+  const res = await apiFetch<any>("/admin/reports/generate", {
+    method: "POST",
     requiresAuth: true,
-    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
+    body: JSON.stringify(payload)
   });
   return res.data;
 }
 
-export async function apiUpdatePackageStatus(packageType: string, isActive: number | boolean): Promise<any> {
+export function apiGetReportsExportUrl(dateFrom?: string, dateTo?: string): string {
+  const baseUrl = getApiBaseUrl().replace(/\/+$/, "");
+  const params = new URLSearchParams();
+  if (dateFrom) params.append("date_from", dateFrom);
+  if (dateTo) params.append("date_to", dateTo);
+  const q = params.toString();
+  return `${baseUrl}/admin/reports/export${q ? `?${q}` : ""}`;
+}
+
+// -------------------------------------------------------------
+// Coach Me Endpoints (API_COACH.md)
+// -------------------------------------------------------------
+
+export async function apiGetCoachMe(): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me", { requiresAuth: true });
+  return res.data;
+}
+
+export async function apiUpdateCoachMe(payload: {
+  phone?: string;
+  bio?: string;
+  break_interval?: number;
+  years_experience?: number;
+  certifications?: string;
+  avatar_url?: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me", {
+    method: "PATCH",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiGenerateCoachSchedule(coachId: number, untilDate: string): Promise<any> {
+  const res = await apiFetch<any>(`/coaches/${coachId}/schedule`, {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({ until_date: untilDate })
+  });
+  return res.data;
+}
+
+export async function apiCreateMemberReviewByCoach(payload: {
+  booking_id: number;
+  completion_score: number;
+  proficiency_score: number;
+  training_area: string;
+  training_type: string;
+  coach_note: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me/member-reviews", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiGetCoachMeMessages(memberId?: number): Promise<any[]> {
+  const q = memberId ? `?member_id=${memberId}` : "";
+  const res = await apiFetch<any[]>(`/coaches/me/messages${q}`, { requiresAuth: true });
+  return res.data || [];
+}
+
+export async function apiSendCoachMeMessage(payload: { member_id: number; message_text: string }): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me/messages", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+// -------------------------------------------------------------
+// Catalog & Details Endpoints (API_GENERAL.md)
+// -------------------------------------------------------------
+
+export async function apiGetCourseDetail(courseId: number): Promise<any> {
+  const res = await apiFetch<any>(`/courses/${courseId}`);
+  return res.data;
+}
+
+export async function apiGetGymDetail(gymId: number): Promise<any> {
+  const res = await apiFetch<any>(`/gyms/${gymId}`);
+  return res.data;
+}
+
+export async function apiGetPackageDetail(packageType: string): Promise<any> {
   const encoded = encodeURIComponent(packageType);
-  const res = await apiFetch<any>(`/admin/packages/${encoded}/status`, {
-    method: "PATCH",
-    requiresAuth: true,
-    body: JSON.stringify({ is_active: typeof isActive === "boolean" ? (isActive ? 1 : 0) : isActive })
-  });
+  const res = await apiFetch<any>(`/packages/${encoded}`);
   return res.data;
 }
+
+export async function apiGetCoachCourses(coachId: number): Promise<any[]> {
+  const res = await apiFetch<any[]>(`/coaches/${coachId}/courses`);
+  return res.data || [];
+}
+
+export async function apiGetCoachServices(coachId: number): Promise<any[]> {
+  const res = await apiFetch<any[]>(`/coaches/${coachId}/services`);
+  return res.data || [];
+}
+
+export async function apiGetAuthMe(): Promise<any> {
+  const res = await apiFetch<any>("/auth/me", { requiresAuth: true });
+  return res.data;
+}
+
 

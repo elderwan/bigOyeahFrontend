@@ -18,7 +18,9 @@ import {
 import {
   apiGetMemberProfile,
   apiGetMemberBookings,
+  apiCreateBooking,
   apiCancelBooking,
+  apiPurchasePackage,
   apiCreateReview,
   getAccessToken,
   formatApiTime,
@@ -962,6 +964,47 @@ function CheckoutScreen({
     { name: "Cash", value: "CASH", detail: "Pay in person", icon: "฿" },
     { name: "Package credit", value: "PACKAGE_CREDIT", detail: "Use a remaining session", icon: "◉" }
   ];
+  const [confirming, setConfirming] = useState(false);
+  const handleConfirm = async () => {
+    setConfirming(true);
+    try {
+      if (getAccessToken()) {
+        if (package_type) {
+          try {
+            await apiPurchasePackage({ package_type, payment_method });
+          } catch (e: any) {
+            console.warn("Purchase package:", e.message);
+          }
+        }
+        const dur = course.default_duration || 60;
+        const roundedDur = Math.max(10, Math.round(dur / 10) * 10);
+        let sTime = start_time || "09:00";
+        const [sh, sm] = sTime.split(":").map(Number);
+        const alignedSm = Math.min(50, Math.round((sm || 0) / 10) * 10);
+        sTime = `${String(sh || 9).padStart(2, "0")}:${String(alignedSm).padStart(2, "0")}`;
+
+        await apiCreateBooking({
+          coach_id: coach.coach.coach_id,
+          course_id: course.course_id,
+          gym_id: service_mode === "GYM" ? coach.gym.gym_id : null,
+          booking_date: booking_date || "2026-04-20",
+          start_time: sTime,
+          duration_minutes: roundedDur,
+          break_minutes: 10,
+          service_mode,
+          service_district: service_mode === "HOME" ? (coach.coach_service.service_area || "NIMMAN") : null,
+          service_address: service_mode === "HOME" ? "Chiang Mai" : null,
+          price: package_type ? 0 : Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate))
+        });
+      }
+    } catch (err: any) {
+      console.warn("Backend booking create:", err.message);
+    } finally {
+      setConfirming(false);
+      navigate("success");
+    }
+  };
+
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("booking")}><ArrowLeft size={16} /> Back to time selection</button>
     <PageHeading eyebrow="ONE LAST STEP" title="Your time is waiting." detail="Review your session and choose how you’d like to pay." />
@@ -970,7 +1013,7 @@ function CheckoutScreen({
       {package_type === null && <section className="checkout-card"><div className="section-title"><div><h2>Member discount</h2><p>Your membership makes every session go further.</p></div><Pill className="gold-pill"><Award size={13} /> Member</Pill></div><div className="membership-choice-row"><span className="membership-medal"><Trophy size={18} /></span><span><b>{membership_level.level_name}</b><small>{membership_level.discount_rate * 100}% off this session</small></span><strong>− ฿{Math.round(coach_course.price_per_session * membership_level.discount_rate)}</strong></div><div className="tier-selector">{preview_membership_levels.map((item) => <button key={item.level_id} className={`tier-option ${membership_level.level_id === item.level_id ? "selected" : ""}`} onClick={() => setLevelId(item.level_id)}>{item.level_name.replace(" Member", "")}</button>)}</div></section>}
       <section className="checkout-card"><div className="section-title"><div><h2>Session package</h2><p>Package types follow the FitBooking plan options.</p></div><button className="text-link" onClick={() => navigate("packages")}>Compare plans <ArrowRight size={14} /></button></div><div className="package-choices">{([{ name: "Single session", type: null, price: "฿720", detail: "Flexible, one at a time" }, { name: "5+1 Sessions", type: "5+1", price: "฿3,400", detail: "5 paid + 1 bonus · 180-day validity" }, { name: "10+3 Sessions", type: "10+3", price: "฿8,970", detail: "10 paid + 3 bonus · Best value" }, { name: "20+7 Sessions", type: "20+7", price: "฿17,550", detail: "20 paid + 7 bonus · 180-day validity" }] as { name: string; type: PackageType | null; price: string; detail: string }[]).map(({ name, type, price, detail }) => <button key={type || "single-session"} className={`package-choice ${package_type === type ? "selected" : ""}`} onClick={() => setPackageChoice(type)}><span className="radio-dot" /><span><b>{name}</b><small>{detail}</small></span><strong>{price}</strong></button>)}</div></section>
       <section className="checkout-card"><div className="section-title"><div><h2>Payment method</h2><p>Choose how you’d like to complete your order.</p></div></div><div className="payment-method-list">{methods.map((method) => <button key={method.value} className={`payment-option ${payment_method === method.value ? "selected" : ""}`} onClick={() => setPaymentMethod(method.value)}><span className="radio-dot" /><span className="payment-method-icon">{method.icon}</span><span><b>{method.name}</b><small>{method.detail}</small></span><ChevronRight size={16} /></button>)}</div></section>
-    </div><aside className="checkout-total-card"><p className="eyebrow">ORDER SUMMARY</p><div className="summary-line"><span>{course.course_name}</span><b>฿{coach_course.price_per_session}</b></div>{package_type === null ? <div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round(coach_course.price_per_session * membership_level.discount_rate)}</b></div> : <div className="summary-line subdued"><span>{labels.package_type[package_type]} package</span><b>No membership discount</b></div>}<div className="summary-divider" /><div className="summary-total"><span>Total due today</span><b>{package_type === null ? `฿${Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate))}` : package_type === "5+1" ? "฿3,400" : package_type === "20+7" ? "฿17,550" : "฿8,970"}</b></div><PrimaryButton onClick={() => navigate("success")}>Confirm booking <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Preview checkout · no real payment</p><button className="text-link checkout-help" onClick={() => navigate("profile")}><CircleHelp size={14} /> Need a hand?</button></aside></div>
+    </div><aside className="checkout-total-card"><p className="eyebrow">ORDER SUMMARY</p><div className="summary-line"><span>{course.course_name}</span><b>฿{coach_course.price_per_session}</b></div>{package_type === null ? <div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round(coach_course.price_per_session * membership_level.discount_rate)}</b></div> : <div className="summary-line subdued"><span>{labels.package_type[package_type]} package</span><b>No membership discount</b></div>}<div className="summary-divider" /><div className="summary-total"><span>Total due today</span><b>{package_type === null ? `฿${Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate))}` : package_type === "5+1" ? "฿3,400" : package_type === "20+7" ? "฿17,550" : "฿8,970"}</b></div><PrimaryButton onClick={handleConfirm} disabled={confirming}>{confirming ? "Confirming..." : "Confirm booking"} <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Secure booking with Chiang Mai verified coaches</p><button className="text-link checkout-help" onClick={() => navigate("profile")}><CircleHelp size={14} /> Need a hand?</button></aside></div>
   </div>;
 }
 

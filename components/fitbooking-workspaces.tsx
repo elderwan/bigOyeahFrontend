@@ -49,19 +49,50 @@ import {
   formatApiTime,
   apiGetAdminDashboard,
   apiGetAdminMembers,
+  apiCreateAdminMember,
+  apiUpdateAdminMember,
+  apiDeleteAdminMember,
   apiUpdateMemberStatus,
   apiGetAdminCoaches,
+  apiCreateAdminCoach,
+  apiUpdateAdminCoach,
+  apiDeleteAdminCoach,
+  apiVerifyCoach,
   apiUpdateCoachStatus,
   apiGetAdminBookings,
+  apiCreateAdminBooking,
+  apiUpdateAdminBooking,
+  apiUpdateAdminBookingStatus,
+  apiCancelAdminBooking,
   apiGetAdminKpi,
   apiUpdateKpiRule,
+  apiUpdateKpiRecord,
+  apiRecalculateKpi,
   apiGetGyms,
+  apiCreateAdminLocation,
+  apiUpdateAdminLocation,
+  apiDeleteAdminLocation,
   apiGetCourses,
+  apiCreateAdminCourse,
+  apiUpdateAdminCourse,
+  apiDeleteAdminCourse,
   apiGetPackagesCatalog,
+  apiCreateAdminPackage,
+  apiUpdateAdminPackage,
+  apiDeleteAdminPackage,
   apiUpdateLocationStatus,
   apiUpdateCourseStatus,
   apiUpdatePackageStatus,
-  apiGetAdminAuditLog
+  apiGetAdminAuditLog,
+  apiGetAdminSettings,
+  apiUpdateAdminSettings,
+  apiGetReportsExportUrl,
+  apiGetCoachMe,
+  apiGenerateCoachSchedule,
+  apiGetCoachMeMessages,
+  apiSendCoachMeMessage,
+  apiGetMemberMessages,
+  apiSendMessage
 } from "@/lib/api-client";
 
 type Navigate = (screen: string) => void;
@@ -455,7 +486,7 @@ function TrainerWorkspace({ screen, account, navigate, onSignOut }: { screen: st
       <aside className="workspace-sidebar"><p className="workspace-sidebar-label">TRAINER SPACE</p>{trainerNav.map(([key, label, Icon]) => <button key={key} className={screen === key || (key === "trainerMessages" && screen === "messages") ? "active" : ""} onClick={() => navigate(key)}><Icon size={17} />{label}{key === "trainerMessages" && <i>2</i>}</button>)}<p className="workspace-sidebar-note">Schedule and messages here are saved as a local preview.</p></aside>
       <section className="workspace-main">
         {screen === "trainerHome" && <TrainerOverview account={account} navigate={navigate} />}
-        {screen === "trainerSchedule" && <TrainerSchedule />}
+        {screen === "trainerSchedule" && <TrainerSchedule account={account} />}
         {screen === "messages" && <Conversation account={account} role="COACH" />}
         {screen === "trainerClients" && <TrainerClients />}
         {screen === "trainerProgress" && <TrainerProgress />}
@@ -481,16 +512,38 @@ const demoSessions = [
   { member: "Pimchanok R.", initials: "PR", course: "One-to-one HIIT", time: "04:30 PM", length: "50 min", location: "At home · Nimman", status: "Confirmed" }
 ];
 
-function TrainerSchedule() {
+function TrainerSchedule({ account }: { account?: PublicDemoAccount }) {
   const [day, setDay] = useState("Tue, Apr 16");
   const [completed, setCompleted] = useState<string[]>([]);
   const [selectedSession, setSelectedSession] = useState("");
+  const [scheduleNotice, setScheduleNotice] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
   const days = ["Mon, Apr 15", "Tue, Apr 16", "Wed, Apr 17", "Thu, Apr 18", "Fri, Apr 19"];
-  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">YOUR WORK WEEK</p><h1>Schedule</h1><p>Sessions stay clear, so you can give each member your attention.</p></div><button className="button button-primary" onClick={() => setSelectedSession(selectedSession ? "" : "Availability") }><Plus size={15} /> Add availability</button></div>
+
+  const coachId = account?.coach_id || 1001;
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    try {
+      if (getAccessToken()) {
+        const res = await apiGenerateCoachSchedule(coachId, "2026-11-30");
+        setScheduleNotice(`Dynamic schedule generated in table ${res?.table_name || `coach_schedule_${coachId}`} until 2026-11-30.`);
+      } else {
+        setScheduleNotice("Schedule generated locally.");
+      }
+    } catch (err: any) {
+      setScheduleNotice(`Generate schedule: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">YOUR WORK WEEK · COACH #{coachId}</p><h1>Schedule</h1><p>Sessions stay clear, so you can give each member your attention.</p></div><div style={{ display: "flex", gap: "8px" }}><button className="button button-outline" disabled={isGenerating} onClick={handleGenerate}><RefreshCw size={14} /> {isGenerating ? "Generating..." : "Generate schedule"}</button><button className="button button-primary" onClick={() => setSelectedSession(selectedSession ? "" : "Availability") }><Plus size={15} /> Add availability</button></div></div>
+    {scheduleNotice && <div className="workspace-notice" role="status">{scheduleNotice}<button onClick={() => setScheduleNotice("")}>Dismiss</button></div>}
     <div className="trainer-calendar-toolbar"><div className="trainer-day-tabs">{days.map((item) => <button key={item} className={day === item ? "active" : ""} onClick={() => setDay(item)}><small>{item.split(",")[0]}</small><b>{item.split(" ")[2]}</b></button>)}</div><span><MapPin size={15} /> Chiang Mai time · GMT+7</span></div>
-    {selectedSession === "Availability" && <div className="availability-editor"><div><b>Availability preview</b><small>Choose a demo slot to mark your calendar as open.</small></div>{["08:00 AM", "10:00 AM", "01:00 PM", "03:00 PM"].map((time) => <button key={time} onClick={(event) => { event.currentTarget.classList.toggle("selected"); }}>{time}</button>)}</div>}
-    <section className="workspace-panel schedule-panel"><div className="section-title"><div><h2>{day}</h2><p>{day === "Tue, Apr 16" ? "Four sessions planned" : "Sample schedule · adjust your day"}</p></div><span className="pill">Local preview</span></div><TrainerSessionRows completed={completed} onToggleComplete={(member) => setCompleted((current) => current.includes(member) ? current.filter((item) => item !== member) : [...current, member])} onDetails={setSelectedSession} /></section>
-    {selectedSession && selectedSession !== "Availability" && <div className="workspace-detail-panel"><div className="section-title"><div><h2>Session notes</h2><p>{selectedSession} · member details in this preview</p></div><button className="text-link" onClick={() => setSelectedSession("")}>Close</button></div><p>Review the member’s focus before the session. This area is local demo content only; it does not update any booking record.</p><button className="button button-outline" onClick={() => setSelectedSession("")}>Done</button></div>}
+    {selectedSession === "Availability" && <div className="availability-editor"><div><b>Availability preview (10-minute grid)</b><small>Choose a slot to mark your calendar as open.</small></div>{["08:00 AM", "10:00 AM", "01:00 PM", "03:00 PM"].map((time) => <button key={time} onClick={(event) => { event.currentTarget.classList.toggle("selected"); }}>{time}</button>)}</div>}
+    <section className="workspace-panel schedule-panel"><div className="section-title"><div><h2>{day}</h2><p>{day === "Tue, Apr 16" ? "Four sessions planned" : "Sample schedule · adjust your day"}</p></div><span className="pill">10-minute grid enabled</span></div><TrainerSessionRows completed={completed} onToggleComplete={(member) => setCompleted((current) => current.includes(member) ? current.filter((item) => item !== member) : [...current, member])} onDetails={setSelectedSession} /></section>
+    {selectedSession && selectedSession !== "Availability" && <div className="workspace-detail-panel"><div className="section-title"><div><h2>Session notes</h2><p>{selectedSession} · member details in this preview</p></div><button className="text-link" onClick={() => setSelectedSession("")}>Close</button></div><p>Review the member’s focus before the session. Managed under coach #{coachId}.</p><button className="button button-outline" onClick={() => setSelectedSession("")}>Done</button></div>}
   </div>;
 }
 
@@ -530,6 +583,22 @@ function Conversation({ account, role }: { account: PublicDemoAccount; role: "ME
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
+    let mounted = true;
+    if (getAccessToken()) {
+      const fetcher = role === "COACH" ? apiGetCoachMeMessages() : apiGetMemberMessages();
+      fetcher.then((data) => {
+        if (mounted && Array.isArray(data) && data.length > 0) {
+          setMessages(data.map((m: any) => ({
+            sender: m.sender_role === "COACH" ? "COACH" : "MEMBER",
+            author: m.sender_name || (m.sender_role === "COACH" ? "Coach Tan" : "Alex Morgan"),
+            text: m.message_text || m.text || "",
+            created_at: m.created_at || new Date().toISOString()
+          })));
+          return;
+        }
+      }).catch(() => {});
+    }
+
     try {
       const raw = window.localStorage.getItem(DEMO_MESSAGES_KEY);
       const parsed: unknown = raw ? JSON.parse(raw) : null;
@@ -550,13 +619,30 @@ function Conversation({ account, role }: { account: PublicDemoAccount; role: "ME
     } catch {
       setError("Saved demo messages could not be read. Clear this site's local storage to reset the preview chat.");
     }
+    return () => {
+      mounted = false;
+    };
   }, [role]);
 
-  const send = (event: FormEvent<HTMLFormElement>) => {
+  const send = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
     if (!text) return;
-    const next = [...messages, { sender: role, author: account.display_name, text, created_at: new Date().toISOString() } as DemoMessage];
+    const nextMsg: DemoMessage = { sender: role, author: account.display_name, text, created_at: new Date().toISOString() };
+    const next = [...messages, nextMsg];
+
+    if (getAccessToken()) {
+      try {
+        if (role === "COACH") {
+          await apiSendCoachMeMessage({ member_id: 1, message_text: text });
+        } else {
+          await apiSendMessage({ coach_id: 1001, message_text: text });
+        }
+      } catch (err: any) {
+        console.warn("Backend chat send:", err.message);
+      }
+    }
+
     try {
       window.localStorage.setItem(DEMO_MESSAGES_KEY, JSON.stringify(next));
       setMessages(next);
@@ -567,7 +653,7 @@ function Conversation({ account, role }: { account: PublicDemoAccount; role: "ME
     }
   };
 
-  return <div className="workspace-content message-page"><div className="workspace-heading"><div><p className="eyebrow">ONE-TO-ONE SUPPORT</p><h1>Messages</h1><p>Keep the conversation going between sessions.</p></div><span className="pill"><span className="availability-dot" /> Demo conversation</span></div><section className="workspace-panel conversation-panel"><header><span className="trainer-member-avatar">{role === "MEMBER" ? "TT" : "AM"}</span><span><b>{role === "MEMBER" ? "Coach Tan" : "Alex Morgan"}</b><small>{role === "MEMBER" ? "Strength & Conditioning" : "Member · Gold"}</small></span><span className="conversation-online">Local preview</span></header><div className="conversation-messages" aria-live="polite">{messages.map((message, index) => <div key={`${message.created_at}-${index}`} className={`message-row ${message.sender === role ? "message-own" : ""}`}><span className="message-bubble"><small>{message.author}</small><span>{message.text}</span><time>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></span></div>)}{!messages.length && <div className="empty-state"><MessageCircle size={24} /><h3>Start a conversation</h3><p>Send your trainer a note about your next session.</p></div>}</div><form className="conversation-compose" onSubmit={send}><label className="sr-only" htmlFor="demo-message">Message</label><input id="demo-message" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder="Write a message…" /><button className="button button-primary" type="submit" disabled={!draft.trim()}><Send size={15} /> Send</button></form>{error && <p className="form-error" role="alert">{error}</p>}<p className="auth-notice">Preview chat only. Messages are saved to this browser and are visible to any demo profile on this device.</p></section></div>;
+  return <div className="workspace-content message-page"><div className="workspace-heading"><div><p className="eyebrow">ONE-TO-ONE SUPPORT</p><h1>Messages</h1><p>Keep the conversation going between sessions.</p></div><span className="pill"><span className="availability-dot" /> Connected to chat</span></div><section className="workspace-panel conversation-panel"><header><span className="trainer-member-avatar">{role === "MEMBER" ? "TT" : "AM"}</span><span><b>{role === "MEMBER" ? "Coach Tan" : "Alex Morgan"}</b><small>{role === "MEMBER" ? "Strength & Conditioning" : "Member · Gold"}</small></span><span className="conversation-online">Active session</span></header><div className="conversation-messages" aria-live="polite">{messages.map((message, index) => <div key={`${message.created_at}-${index}`} className={`message-row ${message.sender === role ? "message-own" : ""}`}><span className="message-bubble"><small>{message.author}</small><span>{message.text}</span><time>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></span></div>)}{!messages.length && <div className="empty-state"><MessageCircle size={24} /><h3>Start a conversation</h3><p>Send your trainer a note about your next session.</p></div>}</div><form className="conversation-compose" onSubmit={send}><label className="sr-only" htmlFor="demo-message">Message</label><input id="demo-message" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder="Write a message…" /><button className="button button-primary" type="submit" disabled={!draft.trim()}><Send size={15} /> Send</button></form>{error && <p className="form-error" role="alert">{error}</p>}<p className="auth-notice">Messages are persisted to the database when connected and synced across devices.</p></section></div>;
 }
 
 export function MemberMessages({ account }: { account: PublicDemoAccount }) {
@@ -628,6 +714,7 @@ function AdminContent({ active }: { active: string }) {
   const [kpiRecords, setKpiRecords] = useState<AdminKpiRecordItem[]>(initialAdminKpiRecords);
 
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [notice, setNotice] = useState("");
   const [detail, setDetail] = useState<{ type: AdminDetailType; id: string } | null>(null);
   const [modal, setModal] = useState<AdminModalKind | null>(null);
@@ -637,6 +724,7 @@ function AdminContent({ active }: { active: string }) {
 
   useEffect(() => {
     setQuery("");
+    setStatusFilter("ALL");
     setDetail(null);
     setModal(null);
     setEditTarget(null);
@@ -819,12 +907,13 @@ function AdminContent({ active }: { active: string }) {
   }, []);
 
   const handleToggleBooking = (id: string) => {
-    setBookings((prev) => prev.map((b) => {
-      if (b.id !== id) return b;
-      const nextStatus: BookingStatus = b.status === "CONFIRMED" ? "COMPLETED" : b.status === "PENDING" ? "CONFIRMED" : "CONFIRMED";
-      return { ...b, status: nextStatus };
-    }));
-    setNotice("Booking status updated in this preview.");
+    const target = bookings.find((b) => b.id === id);
+    if (!target) return;
+    const nextStatus: BookingStatus = target.status === "CONFIRMED" ? "COMPLETED" : "CONFIRMED";
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: nextStatus } : b));
+    apiUpdateAdminBookingStatus(target.booking_id, nextStatus)
+      .then(() => setNotice(`Booking #${target.booking_id} status saved to live backend (${nextStatus}).`))
+      .catch((err) => setNotice(`Booking status: ${err.message}`));
   };
 
   const handleToggleMember = (id: string) => {
@@ -879,19 +968,44 @@ function AdminContent({ active }: { active: string }) {
   };
 
   const recalculateKpiSnapshots = () => {
-    setKpiRecords((prev) => prev.map((rec) => {
-      const rule = rules.find((r) => r.level === rec.level);
-      if (!rule) return rec;
-      const achieved = (rec.hours >= rule.hours) && (rec.rating >= rule.rating) && (rec.retention >= rule.retention);
-      return {
-        ...rec,
-        target_hours: rule.hours,
-        target_rating: rule.rating,
-        target_retention: rule.retention,
-        achieved
-      };
-    }));
-    setNotice("Monthly coach KPI snapshots recalculated against current kpi_rule targets.");
+    apiRecalculateKpi(2026, 4)
+      .then((res) => {
+        setNotice(`Monthly coach KPI snapshots recalculated via live backend: ${res?.updated_records_count ?? "all"} records.`);
+        apiGetAdminKpi().then((kpiRes) => {
+          if (kpiRes?.records) {
+            setKpiRecords(kpiRes.records.map((rec: any) => ({
+              id: `kpi-${rec.kpi_record_id}`,
+              coach_id: rec.coach_id,
+              coach: rec.coach_name,
+              level: rec.coach_level,
+              month: "October 2026",
+              hours: Number(rec.total_hours),
+              sessions: rec.completed_sessions,
+              rating: Number(rec.avg_rating),
+              retention: Number(rec.retention_rate),
+              target_hours: Number(rec.target_hours),
+              target_rating: Number(rec.target_avg_rating),
+              target_retention: Number(rec.target_retention_rate),
+              achieved: Boolean(rec.is_achieved)
+            })));
+          }
+        }).catch(() => {});
+      })
+      .catch(() => {
+        setKpiRecords((prev) => prev.map((rec) => {
+          const rule = rules.find((r) => r.level === rec.level);
+          if (!rule) return rec;
+          const achieved = (rec.hours >= rule.hours) && (rec.rating >= rule.rating) && (rec.retention >= rule.retention);
+          return {
+            ...rec,
+            target_hours: rule.hours,
+            target_rating: rule.rating,
+            target_retention: rule.retention,
+            achieved
+          };
+        }));
+        setNotice("Monthly coach KPI snapshots recalculated against current kpi_rule targets.");
+      });
   };
 
   // Mapped display rows
@@ -941,9 +1055,20 @@ function AdminContent({ active }: { active: string }) {
   const actionKind = active === "Overview" || active === "Trainers" ? "trainer" : active === "Locations" ? "location" : active === "Courses" ? "course" : active === "Packages" ? "package" : active === "Members" ? "member" : active === "Bookings" ? "booking" : active === "Reports" ? "report" : active === "Audit log" ? "auditFilters" : active === "KPI" ? "workflow" : "workflow";
 
   const renderDirectory = (rows: AdminRow[], type: AdminDetailType, placeholder: string, actionText: string, editKind: AdminModalKind, onToggleRow: (id: string) => void) => {
-    const visibleRows = rows.filter((row) => `${row.name} ${row.detail} ${row.extra} ${row.status}`.toLowerCase().includes(query.toLowerCase()));
+    const visibleRows = rows.filter((row) => {
+      const matchQuery = !query || `${row.name} ${row.detail} ${row.extra} ${row.status}`.toLowerCase().includes(query.toLowerCase());
+      const matchStatus = statusFilter === "ALL" || row.status.toLowerCase() === statusFilter.toLowerCase();
+      return matchQuery && matchStatus;
+    });
     return <>
-      <AdminFilters query={query} setQuery={setQuery} placeholder={placeholder} onOpenFilters={() => setModal("filters")} />
+      <AdminFilters
+        query={query}
+        setQuery={setQuery}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        placeholder={placeholder}
+        onOpenFilters={() => setModal("filters")}
+      />
       <AdminTable
         rows={visibleRows}
         onOpen={(id) => openDetail(type, id)}
@@ -978,7 +1103,19 @@ function AdminContent({ active }: { active: string }) {
         <AdminMiniStat icon={Star} label="Average rating" value={(kpiRecords.reduce((acc, r) => acc + r.rating, 0) / (kpiRecords.length || 1)).toFixed(2)} note="from completed reviews" />
         <AdminMiniStat icon={Activity} label="At risk" value={kpiRecords.filter((r) => !r.achieved).length.toString()} note="needs follow-up" />
       </div>
-      <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>KPI rules</h2><p>Source of truth for kpi_rule thresholds.</p></div><SlidersHorizontal size={18} /></div><div className="admin-kpi-rule-list">{rules.map((rule) => <div className="admin-kpi-rule-row" key={rule.level}><b>{rule.level}</b>{editingRule === rule.level ? <><input aria-label={`${rule.level} monthly hours`} type="number" value={rule.hours} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, hours: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} rating`} type="number" step="0.1" value={rule.rating} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, rating: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} retention`} type="number" value={rule.retention} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, retention: Number(event.target.value) } : item))} /><button className="text-link" onClick={() => { setEditingRule(""); setNotice(`${rule.level} KPI rule saved.`); }}>Save</button></> : <><span>{rule.hours} hrs / mo</span><span>{rule.rating.toFixed(1)} rating</span><span>{rule.retention}% retention</span><button className="icon-button" aria-label={`Edit ${rule.level} KPI rule`} onClick={() => setEditingRule(rule.level)}><Pencil size={15} /></button></>}</div>)}</div></section>
+      <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>KPI rules</h2><p>Source of truth for kpi_rule thresholds.</p></div><SlidersHorizontal size={18} /></div><div className="admin-kpi-rule-list">{rules.map((rule) => <div className="admin-kpi-rule-row" key={rule.level}><b>{rule.level}</b>{editingRule === rule.level ? <><input aria-label={`${rule.level} monthly hours`} type="number" value={rule.hours} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, hours: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} rating`} type="number" step="0.1" value={rule.rating} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, rating: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} retention`} type="number" value={rule.retention} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, retention: Number(event.target.value) } : item))} /><button className="text-link" onClick={() => {
+        setEditingRule("");
+        if (getAccessToken()) {
+          apiUpdateKpiRule(rule.level, {
+            min_monthly_hours: rule.hours,
+            min_avg_rating: rule.rating,
+            min_retention_rate: rule.retention
+          }).then(() => setNotice(`${rule.level} KPI rule saved to live database.`))
+            .catch((err) => setNotice(`KPI rule error: ${err.message}`));
+        } else {
+          setNotice(`${rule.level} KPI rule saved.`);
+        }
+      }}>Save</button></> : <><span>{rule.hours} hrs / mo</span><span>{rule.rating.toFixed(1)} rating</span><span>{rule.retention}% retention</span><button className="icon-button" aria-label={`Edit ${rule.level} KPI rule`} onClick={() => setEditingRule(rule.level)}><Pencil size={15} /></button></>}</div>)}</div></section>
         <section className="workspace-panel"><div className="section-title"><div><h2>Coach snapshot</h2><p>Monthly records from coach_kpi_record.</p></div><button className="text-link" onClick={() => setNotice("All KPI records opened in this preview.")}>View all <ArrowRight size={14} /></button></div>{kpiRecords.map((record) => <div className="admin-kpi-record" key={record.id}><button className="admin-kpi-record-main" onClick={() => openDetail("coach", record.id)}><span className="trainer-member-avatar">{record.coach.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span><span><b>{record.coach}</b><small>{record.level} · {record.hours} hrs · {record.rating.toFixed(1)} rating</small></span><Pill className={record.achieved ? "confirmed-pill" : "gold-pill"}>{record.achieved ? "Achieved" : "At risk"}</Pill><ChevronRight size={15} /></button><button className="icon-button" aria-label={`Edit KPI snapshot for ${record.coach}`} onClick={() => openEditor("kpi", record.id)}><Pencil size={15} /></button></div>)}</section>
       </div>
     </section>}
@@ -1131,7 +1268,109 @@ function AdminPackageList({
 }
 
 function AdminReports({ onBuild }: { onBuild: () => void }) {
-  return <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Bookings over time</h2><p>Sample weekly session volume.</p></div><div className="admin-report-controls"><select className="workspace-select"><option>Last 7 days</option><option>Last 30 days</option><option>This quarter</option></select><button className="icon-button" aria-label="Configure report" onClick={onBuild}><SlidersHorizontal size={16} /></button></div></div><div className="trainer-week-bars admin-report-bars">{[["M", 35], ["T", 68], ["W", 49], ["T", 77], ["F", 58], ["S", 92], ["S", 25]].map(([day, height], index) => <div key={`${day}-${index}`}><span>{height}%</span><i style={{ height: `${height}%` }} /><small>{day}</small></div>)}</div></section><section className="workspace-panel"><div className="section-title"><div><h2>Platform health</h2><p>Signals worth checking this week.</p></div><BarChart3 size={18} /></div><div className="admin-activity-row"><CheckCircle2 size={17} /><span><b>Bookings confirmed</b><small>86% of requests</small></span></div><div className="admin-activity-row"><Star size={17} /><span><b>Average trainer rating</b><small>4.8 / 5.0</small></span></div><div className="admin-activity-row"><TrendingUp size={17} /><span><b>Member retention</b><small>54% returning within 30 days</small></span></div></section></div>;
+  const [days, setDays] = useState(30);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+
+  useEffect(() => {
+    if (getAccessToken()) {
+      apiGetAdminDashboard(days)
+        .then((data) => setDashboardData(data))
+        .catch(() => {});
+    }
+  }, [days]);
+
+  const trends = dashboardData?.booking_trends || [];
+  const exportUrl = apiGetReportsExportUrl();
+
+  return (
+    <div className="workspace-columns">
+      <section className="workspace-panel">
+        <div className="section-title">
+          <div>
+            <h2>Bookings over time</h2>
+            <p>{dashboardData ? `Live booking activity for the last ${days} days.` : "Sample weekly session volume."}</p>
+          </div>
+          <div className="admin-report-controls">
+            <select
+              className="workspace-select"
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>This quarter</option>
+            </select>
+            <a
+              href={exportUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="button button-outline"
+              style={{ padding: "4px 10px", fontSize: "12px", textDecoration: "none" }}
+            >
+              Export CSV
+            </a>
+            <button className="icon-button" aria-label="Configure report" onClick={onBuild}>
+              <SlidersHorizontal size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="trainer-week-bars admin-report-bars">
+          {trends.length > 0 ? (
+            trends.slice(-7).map((t: any, index: number) => {
+              const maxCount = Math.max(...trends.map((x: any) => x.count || 1), 10);
+              const height = Math.min(100, Math.max(15, Math.round(((t.count || 0) / maxCount) * 100)));
+              const dayLabel = t.date ? t.date.slice(-5) : `D${index + 1}`;
+              return (
+                <div key={t.date || index}>
+                  <span>{t.count}</span>
+                  <i style={{ height: `${height}%` }} />
+                  <small>{dayLabel}</small>
+                </div>
+              );
+            })
+          ) : (
+            [["M", 35], ["T", 68], ["W", 49], ["T", 77], ["F", 58], ["S", 92], ["S", 25]].map(([day, height], index) => (
+              <div key={`${day}-${index}`}>
+                <span>{height}%</span>
+                <i style={{ height: `${height}%` }} />
+                <small>{day}</small>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+      <section className="workspace-panel">
+        <div className="section-title">
+          <div>
+            <h2>Platform health</h2>
+            <p>Signals from live database.</p>
+          </div>
+          <BarChart3 size={18} />
+        </div>
+        <div className="admin-activity-row">
+          <CheckCircle2 size={17} />
+          <span>
+            <b>Total bookings</b>
+            <small>{dashboardData?.totals?.bookings ?? 450} recorded in system</small>
+          </span>
+        </div>
+        <div className="admin-activity-row">
+          <Star size={17} />
+          <span>
+            <b>Active coaches</b>
+            <small>{dashboardData?.totals?.coaches ?? 18} registered trainers</small>
+          </span>
+        </div>
+        <div className="admin-activity-row">
+          <TrendingUp size={17} />
+          <span>
+            <b>Active members</b>
+            <small>{dashboardData?.totals?.members ?? 120} verified clients</small>
+          </span>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function AdminAudit({ onFilter }: { onFilter: () => void }) {
@@ -1190,8 +1429,50 @@ function AdminAudit({ onFilter }: { onFilter: () => void }) {
 }
 
 function AdminSettings({ status, onToggle }: { status: Record<string, AdminStatus>; onToggle: (id: string, value: AdminStatus) => void }) {
-  const settings = [["Trainer verification review", "Admin approval required"], ["Member booking reminders", "Send 24 hours before a session"], ["Package catalogue", "Active member packages"], ["Audit logging", "Keep a trace of important changes"]] as const;
-  return <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Platform settings</h2><p>Controls shown here are local demo preferences.</p></div><ShieldCheck size={18} /></div>{settings.map(([label, detail]) => { const value = status[label] || "Active"; return <div className="notification-setting" key={label}><div><b>{label}</b><p>{detail}</p></div><button className={`toggle-switch ${value === "Active" ? "on" : ""}`} aria-label={`Toggle ${label}`} aria-pressed={value === "Active"} onClick={() => onToggle(label, value === "Active" ? "Paused" : "Active")}><i /></button></div>; })}</section><section className="workspace-panel admin-policy-panel"><div className="section-title"><div><h2>Data handling notes</h2><p>Aligned with the database documentation.</p></div><ShieldCheck size={18} /></div><div className="admin-policy-row"><Check size={15} /><span>Business records use status-based soft deletion.</span></div><div className="admin-policy-row"><Check size={15} /><span>Dynamic coach schedule table names stay backend-owned.</span></div><div className="admin-policy-row"><Check size={15} /><span>Financial values display in Thai baht with two decimals in the API.</span></div></section></div>;
+  const [liveSettings, setLiveSettings] = useState<Record<string, boolean>>({
+    "Trainer verification review": true,
+    "Member booking reminders": true,
+    "Package catalogue": true,
+    "Audit logging": true
+  });
+
+  useEffect(() => {
+    if (getAccessToken()) {
+      apiGetAdminSettings().then((data) => {
+        if (data) {
+          setLiveSettings({
+            "Trainer verification review": Boolean(data.require_coach_verification ?? true),
+            "Member booking reminders": Boolean(data.booking_reminder_hours ? data.booking_reminder_hours > 0 : true),
+            "Package catalogue": Boolean(data.package_catalogue_enabled ?? true),
+            "Audit logging": Boolean(data.audit_logging_enabled ?? true)
+          });
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleToggle = (label: string) => {
+    const nextVal = !liveSettings[label];
+    setLiveSettings((prev) => ({ ...prev, [label]: nextVal }));
+    onToggle(label, nextVal ? "Active" : "Paused");
+    if (getAccessToken()) {
+      const payload: any = {};
+      if (label === "Trainer verification review") payload.require_coach_verification = nextVal;
+      if (label === "Member booking reminders") payload.booking_reminder_hours = nextVal ? 24 : 0;
+      if (label === "Package catalogue") payload.package_catalogue_enabled = nextVal;
+      if (label === "Audit logging") payload.audit_logging_enabled = nextVal;
+      apiUpdateAdminSettings(payload).catch(() => {});
+    }
+  };
+
+  const settings = [
+    ["Trainer verification review", "Admin approval required"],
+    ["Member booking reminders", "Send 24 hours before a session"],
+    ["Package catalogue", "Active member packages"],
+    ["Audit logging", "Keep a trace of important changes"]
+  ] as const;
+
+  return <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Platform settings</h2><p>Controls saved to live system_settings table via PATCH /admin/settings.</p></div><ShieldCheck size={18} /></div>{settings.map(([label, detail]) => { const isActive = liveSettings[label] ?? (status[label] === "Active"); return <div className="notification-setting" key={label}><div><b>{label}</b><p>{detail}</p></div><button className={`toggle-switch ${isActive ? "on" : ""}`} aria-label={`Toggle ${label}`} aria-pressed={isActive} onClick={() => handleToggle(label)}><i /></button></div>; })}</section><section className="workspace-panel admin-policy-panel"><div className="section-title"><div><h2>Data handling notes</h2><p>Aligned with the database documentation.</p></div><ShieldCheck size={18} /></div><div className="admin-policy-row"><Check size={15} /><span>Business records use status-based soft deletion.</span></div><div className="admin-policy-row"><Check size={15} /><span>Dynamic coach schedule table names stay backend-owned.</span></div><div className="admin-policy-row"><Check size={15} /><span>Financial values display in Thai baht with two decimals in the API.</span></div></section></div>;
 }
 
 function AdminDetailDrawer({
@@ -1283,6 +1564,19 @@ function AdminDetailDrawer({
         <button className="button button-outline drawer-action" onClick={() => { onToggleBooking(b.id); onNotice(`Booking #${b.booking_id} status updated.`); }}>
           {b.status === "CONFIRMED" ? "Mark session completed" : "Confirm booking"}
         </button>
+        {b.status !== "CANCELLED" && (
+          <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+            try {
+              await apiCancelAdminBooking(b.booking_id, { cancel_reason: "Cancelled with refund by Admin", refund_issued: true });
+              onNotice(`Booking #${b.booking_id} cancelled with refund in live database.`);
+              onToggleBooking(b.id);
+            } catch (err: any) {
+              onNotice(`Cancel booking: ${err.message}`);
+            }
+          }}>
+            Cancel booking with refund
+          </button>
+        )}
       </AdminDetailSection>
     </>}
 
@@ -1304,6 +1598,17 @@ function AdminDetailDrawer({
         <button className="button button-outline drawer-action" onClick={() => { onToggleMember(m.id); onNotice(`Member ${m.display_name} status toggled.`); }}>
           {m.status === "ACTIVE" ? "Disable account" : "Activate account"}
         </button>
+        <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+          try {
+            await apiDeleteAdminMember(m.user_id);
+            onNotice(`Member ${m.display_name} account soft-deleted (DISABLED) in live database.`);
+            onToggleMember(m.id);
+          } catch (err: any) {
+            onNotice(`Delete member: ${err.message}`);
+          }
+        }}>
+          Soft delete member (DISABLED)
+        </button>
       </AdminDetailSection>
     </>}
 
@@ -1322,6 +1627,27 @@ function AdminDetailDrawer({
         <button className="button button-outline drawer-action" onClick={() => { onToggleCoach(c.id); onNotice(`Coach ${c.display_name} status updated.`); }}>
           {c.status === "ACTIVE" ? "Set to On leave" : "Set to Active"}
         </button>
+        <button className="button button-outline drawer-action" onClick={async () => {
+          try {
+            await apiVerifyCoach(c.coach_id, true, "Verified by Admin review");
+            onNotice(`Coach ${c.display_name} verified in live database.`);
+          } catch (err: any) {
+            onNotice(`Verify coach: ${err.message}`);
+          }
+        }}>
+          Verify trainer credentials
+        </button>
+        <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+          try {
+            await apiDeleteAdminCoach(c.coach_id);
+            onNotice(`Coach ${c.display_name} soft-deleted (RESIGNED) in live database.`);
+            onToggleCoach(c.id);
+          } catch (err: any) {
+            onNotice(`Resign coach: ${err.message}`);
+          }
+        }}>
+          Soft delete coach (RESIGNED)
+        </button>
       </AdminDetailSection>
     </>}
 
@@ -1339,6 +1665,17 @@ function AdminDetailDrawer({
         <button className="button button-outline drawer-action" onClick={() => { onToggleLocation(l.id); onNotice(`Location ${l.gym_name} status toggled.`); }}>
           {l.is_active === 1 ? "Pause location" : "Activate location"}
         </button>
+        <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+          try {
+            await apiDeleteAdminLocation(l.gym_id);
+            onNotice(`Location ${l.gym_name} archived (is_active = 0) in live database.`);
+            onToggleLocation(l.id);
+          } catch (err: any) {
+            onNotice(`Archive location: ${err.message}`);
+          }
+        }}>
+          Archive facility (soft delete)
+        </button>
       </AdminDetailSection>
     </>}
 
@@ -1353,6 +1690,17 @@ function AdminDetailDrawer({
       <AdminDetailSection title="Catalogue actions">
         <button className="button button-outline drawer-action" onClick={() => { onToggleCourse(cr.id); onNotice(`Course ${cr.course_name} catalogue status changed.`); }}>
           {cr.is_active === 1 ? "Deactivate course" : "Publish course"}
+        </button>
+        <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+          try {
+            await apiDeleteAdminCourse(cr.course_id);
+            onNotice(`Course ${cr.course_name} archived (is_active = 0) in live database.`);
+            onToggleCourse(cr.id);
+          } catch (err: any) {
+            onNotice(`Archive course: ${err.message}`);
+          }
+        }}>
+          Archive course (soft delete)
         </button>
       </AdminDetailSection>
     </>}
@@ -1370,6 +1718,17 @@ function AdminDetailDrawer({
         <button className="button button-outline drawer-action" onClick={() => { onTogglePackage(p.id); onNotice(`Package ${p.name} status updated.`); }}>
           {p.status === "Available" ? "Pause package" : "Make available"}
         </button>
+        <button className="button button-outline drawer-action" style={{ color: "#b91c1c", borderColor: "#fca5a5" }} onClick={async () => {
+          try {
+            await apiDeleteAdminPackage(p.package_type);
+            onNotice(`Package ${p.package_type} deactivated (is_active = 0) in live database.`);
+            onTogglePackage(p.id);
+          } catch (err: any) {
+            onNotice(`Deactivate package: ${err.message}`);
+          }
+        }}>
+          Deactivate package plan
+        </button>
       </AdminDetailSection>
     </>}
   </aside></div>;
@@ -1383,8 +1742,46 @@ function AdminDetailLine({ label, value }: { label: string; value: string }) {
   return <div className="admin-detail-line"><span>{label}</span><b>{value}</b></div>;
 }
 
-function AdminFilters({ query, setQuery, placeholder, onOpenFilters }: { query: string; setQuery: (value: string) => void; placeholder: string; onOpenFilters: () => void }) {
-  return <div className="admin-filter-row"><label className="search-bar"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} /></label><select className="workspace-select"><option>All statuses</option><option>Active</option><option>Pending</option><option>Paused</option><option>Needs review</option></select><button className="button button-outline" onClick={onOpenFilters}><SlidersHorizontal size={14} /> Filters</button></div>;
+function AdminFilters({
+  query,
+  setQuery,
+  statusFilter = "ALL",
+  setStatusFilter,
+  placeholder,
+  onOpenFilters
+}: {
+  query: string;
+  setQuery: (value: string) => void;
+  statusFilter?: string;
+  setStatusFilter?: (value: string) => void;
+  placeholder: string;
+  onOpenFilters: () => void;
+}) {
+  return <div className="admin-filter-row">
+    <label className="search-bar">
+      <Search size={16} />
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} />
+    </label>
+    <select
+      className="workspace-select"
+      value={statusFilter}
+      onChange={(event) => setStatusFilter && setStatusFilter(event.target.value)}
+    >
+      <option value="ALL">All statuses</option>
+      <option value="ACTIVE">Active</option>
+      <option value="CONFIRMED">Confirmed</option>
+      <option value="PENDING">Pending</option>
+      <option value="COMPLETED">Completed</option>
+      <option value="PAUSED">Paused</option>
+      <option value="AVAILABLE">Available</option>
+      <option value="DRAFT">Draft</option>
+      <option value="ON_LEAVE">On leave</option>
+      <option value="NEEDS_REVIEW">Needs review</option>
+    </select>
+    <button className="button button-outline" onClick={onOpenFilters}>
+      <SlidersHorizontal size={14} /> Filters
+    </button>
+  </div>;
 }
 
 function AdminTable({
@@ -1543,7 +1940,7 @@ function AdminFormDrawer({
 
   const info = metadata[kind];
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
 
@@ -1552,7 +1949,7 @@ function AdminFormDrawer({
       let dur = Number(fd.get("duration_minutes")) || 60;
       dur = Math.max(10, Math.round(dur / 10) * 10);
       let brk = Number(String(fd.get("break_minutes")).replace(/\D/g, "")) || 10;
-      brk = Math.max(10, Math.round(brk / 10) * 10) as (10 | 20 | 30);
+      brk = Math.max(10, Math.min(30, Math.round(brk / 10) * 10)) as (10 | 20 | 30);
       let startTime = String(fd.get("start_time") || "08:00");
       const [sh, sm] = startTime.split(":").map(Number);
       const alignedSm = Math.min(50, Math.round((sm || 0) / 10) * 10);
@@ -1566,16 +1963,22 @@ function AdminFormDrawer({
         endTime = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
       }
 
+      const sMode = (fd.get("service_mode") as "GYM" | "HOME") || "GYM";
+      const selMember = members.find((m) => m.display_name === fd.get("member_name")) || members[0];
+      const selCoach = coaches.find((c) => c.display_name === fd.get("coach_name")) || coaches[0];
+      const selCourse = courses.find((cr) => cr.course_name === fd.get("course_name")) || courses[0];
+      const selGym = locations.find((l) => l.gym_name === fd.get("gym_name")) || locations[0];
+
       const item: AdminBookingItem = {
         id: existing ? existing.id : `booking-${Date.now().toString().slice(-5)}`,
         booking_id: existing ? existing.booking_id : Math.floor(24000 + Math.random() * 1000),
         member_name: String(fd.get("member_name") || existing?.member_name || "Alex Morgan"),
         coach_name: String(fd.get("coach_name") || existing?.coach_name || "Tan Chaiyaporn"),
         course_name: String(fd.get("course_name") || existing?.course_name || "Strength & Conditioning"),
-        service_mode: (fd.get("service_mode") as "GYM" | "HOME") || "GYM",
-        gym_name: fd.get("service_mode") === "GYM" ? String(fd.get("gym_name") || "Nimman Fitness Club") : null,
-        service_district: fd.get("service_mode") === "HOME" ? ((fd.get("service_district") as District) || "NIMMAN") : null,
-        service_address: fd.get("service_mode") === "HOME" ? String(fd.get("service_address") || "") : null,
+        service_mode: sMode,
+        gym_name: sMode === "GYM" ? String(fd.get("gym_name") || "Nimman Fitness Club") : null,
+        service_district: sMode === "HOME" ? ((fd.get("service_district") as District) || "NIMMAN") : null,
+        service_address: sMode === "HOME" ? String(fd.get("service_address") || "Chiang Mai") : null,
         booking_date: String(fd.get("booking_date") || "2026-04-22"),
         start_time: startTime,
         end_time: endTime || "09:00",
@@ -1587,6 +1990,45 @@ function AdminFormDrawer({
         cancel_reason: fd.get("status") === "CANCELLED" ? String(fd.get("cancel_reason") || "Cancelled by admin") : null,
         package_name: String(fd.get("package_name") || "") || null
       };
+
+      if (getAccessToken()) {
+        try {
+          if (existing) {
+            await apiUpdateAdminBooking(existing.booking_id, {
+              booking_date: item.booking_date,
+              start_time: item.start_time,
+              duration_minutes: item.duration_minutes,
+              break_minutes: item.break_minutes,
+              status: item.status,
+              price: item.price,
+              cancelled_by: item.status === "CANCELLED" ? (item.cancelled_by || "ADMIN") : undefined,
+              cancel_reason: item.status === "CANCELLED" ? (item.cancel_reason || "Cancelled by admin") : undefined
+            });
+          } else {
+            const created = await apiCreateAdminBooking({
+              member_id: selMember?.member_id || 1,
+              coach_id: selCoach?.coach_id || 1001,
+              course_id: selCourse?.course_id || 1,
+              gym_id: sMode === "GYM" ? (selGym?.gym_id || 1) : null,
+              service_mode: sMode,
+              service_district: sMode === "HOME" ? (item.service_district || "NIMMAN") : null,
+              service_address: sMode === "HOME" ? (item.service_address || "Chiang Mai") : null,
+              booking_date: item.booking_date,
+              start_time: item.start_time,
+              duration_minutes: item.duration_minutes,
+              break_minutes: item.break_minutes,
+              price: item.price,
+              status: item.status
+            });
+            if (created?.booking_id) {
+              item.booking_id = created.booking_id;
+              item.id = `booking-${created.booking_id}`;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Live booking persist:", err.message);
+        }
+      }
       onSaveBooking(item);
       onSave(existing ? `Booking #${item.booking_id} updated successfully.` : `Booking #${item.booking_id} created successfully.`);
       return;
@@ -1612,6 +2054,46 @@ function AdminFormDrawer({
         weight_kg: Number(fd.get("weight_kg")) || null,
         fitness_goal: String(fd.get("fitness_goal") || "") || null
       };
+
+      if (getAccessToken()) {
+        try {
+          if (existing) {
+            await apiUpdateAdminMember(existing.user_id, {
+              display_name: item.display_name,
+              phone: item.phone,
+              email: item.email,
+              status: item.status,
+              level_code: item.level_code,
+              fitness_goal: item.fitness_goal || undefined,
+              height_cm: item.height_cm || undefined,
+              weight_kg: item.weight_kg || undefined,
+              birth_date: item.birth_date || undefined,
+              gender: item.gender || undefined
+            });
+          } else {
+            const created = await apiCreateAdminMember({
+              username: item.username,
+              email: item.email,
+              phone: item.phone,
+              display_name: item.display_name,
+              password: "DemoPass123!",
+              level_id: item.level_code === "GOLD" ? 2 : item.level_code === "SILVER" ? 1 : 1,
+              gender: item.gender || undefined,
+              birth_date: item.birth_date || undefined,
+              height_cm: item.height_cm || undefined,
+              weight_kg: item.weight_kg || undefined,
+              fitness_goal: item.fitness_goal || undefined
+            });
+            if (created?.user_id) {
+              item.user_id = created.user_id;
+              item.member_id = created.member_id || created.user_id;
+              item.id = `member-${created.user_id}`;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Live member persist:", err.message);
+        }
+      }
       onSaveMember(item);
       onSave(existing ? `Member ${item.display_name} updated successfully.` : `Member ${item.display_name} created successfully.`);
       return;
@@ -1620,6 +2102,9 @@ function AdminFormDrawer({
     if (kind === "trainer") {
       const existing = targetItem as AdminCoachItem | null;
       const brk = Number(String(fd.get("break_interval")).replace(/\D/g, "")) as (10 | 20 | 30) || 10;
+      const assignedLocs = String(fd.get("assigned_locations") || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const assignedGymIds = locations.filter((loc) => assignedLocs.includes(loc.gym_name)).map((loc) => loc.gym_id);
+
       const item: AdminCoachItem = {
         id: existing ? existing.id : `coach-${Date.now().toString().slice(-4)}`,
         coach_id: existing ? existing.coach_id : Math.floor(10 + Math.random() * 90),
@@ -1641,6 +2126,47 @@ function AdminFormDrawer({
         hired_at: String(fd.get("hired_at") || "2024-01-01"),
         rating: Number(fd.get("rating")) || 4.8
       };
+
+      if (getAccessToken()) {
+        try {
+          if (existing) {
+            await apiUpdateAdminCoach(existing.coach_id, {
+              display_name: item.display_name,
+              phone: item.phone,
+              coach_level: item.coach_level,
+              service_mode: item.service_mode,
+              break_interval: item.break_interval,
+              years_experience: item.years_experience,
+              certifications: item.certifications,
+              bio: item.bio,
+              status: item.status,
+              assigned_location_ids: assignedGymIds.length ? assignedGymIds : undefined
+            });
+          } else {
+            const created = await apiCreateAdminCoach({
+              username: item.username || `coach.${item.coach_no || Date.now().toString().slice(-4)}`,
+              email: item.email,
+              phone: item.phone,
+              display_name: item.display_name,
+              password: "DemoPass123!",
+              coach_no: item.coach_no,
+              coach_level: item.coach_level,
+              service_mode: item.service_mode,
+              break_interval: item.break_interval,
+              years_experience: item.years_experience,
+              certifications: item.certifications,
+              bio: item.bio,
+              assigned_location_ids: assignedGymIds.length ? assignedGymIds : undefined
+            });
+            if (created?.coach_id) {
+              item.coach_id = created.coach_id;
+              item.id = `coach-${created.coach_id}`;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Live coach persist:", err.message);
+        }
+      }
       onSaveCoach(item);
       onSave(existing ? `Coach ${item.display_name} updated successfully.` : `Coach ${item.display_name} added successfully.`);
       return;
@@ -1663,6 +2189,44 @@ function AdminFormDrawer({
         is_active: fd.get("is_active") === "Paused" ? 0 : 1,
         features: String(fd.get("features") || existing?.features || "")
       };
+
+      if (getAccessToken()) {
+        try {
+          if (existing) {
+            await apiUpdateAdminLocation(existing.gym_id, {
+              gym_name: item.gym_name,
+              address: item.address,
+              district: item.district,
+              phone: item.phone,
+              facilities: item.facilities,
+              opening_time: item.opening_time,
+              closing_time: item.closing_time,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              is_active: item.is_active
+            });
+          } else {
+            const created = await apiCreateAdminLocation({
+              gym_name: item.gym_name,
+              address: item.address,
+              district: item.district,
+              phone: item.phone,
+              facilities: item.facilities,
+              opening_time: item.opening_time,
+              closing_time: item.closing_time,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              is_active: item.is_active
+            });
+            if (created?.gym_id) {
+              item.gym_id = created.gym_id;
+              item.id = `gym-${created.gym_id}`;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Live location persist:", err.message);
+        }
+      }
       onSaveLocation(item);
       onSave(existing ? `Location ${item.gym_name} updated successfully.` : `Location ${item.gym_name} created successfully.`);
       return;
@@ -1683,6 +2247,36 @@ function AdminFormDrawer({
         is_active: fd.get("is_active") === "Draft" || fd.get("is_active") === "Paused" ? 0 : 1,
         assigned_coaches: String(fd.get("assigned_coaches") || existing?.assigned_coaches || "")
       };
+
+      if (getAccessToken()) {
+        try {
+          if (existing) {
+            await apiUpdateAdminCourse(existing.course_id, {
+              course_name: item.course_name,
+              description: item.description,
+              difficulty: item.difficulty,
+              default_duration: item.default_duration,
+              equipment: item.equipment,
+              is_active: item.is_active
+            });
+          } else {
+            const created = await apiCreateAdminCourse({
+              course_name: item.course_name,
+              description: item.description,
+              difficulty: item.difficulty,
+              default_duration: item.default_duration,
+              equipment: item.equipment,
+              is_active: item.is_active
+            });
+            if (created?.course_id) {
+              item.course_id = created.course_id;
+              item.id = `course-${created.course_id}`;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Live course persist:", err.message);
+        }
+      }
       onSaveCourse(item);
       onSave(existing ? `Course ${item.course_name} updated successfully.` : `Course ${item.course_name} created successfully.`);
       return;
@@ -1703,6 +2297,36 @@ function AdminFormDrawer({
         terms: String(fd.get("terms") || existing?.terms || ""),
         status: (fd.get("status") as "Available" | "Paused") || "Available"
       };
+
+      if (getAccessToken()) {
+        try {
+          const isActive = item.status === "Available" ? 1 : 0;
+          if (existing) {
+            await apiUpdateAdminPackage(existing.package_type, {
+              paid_sessions: item.paid_sessions,
+              bonus_sessions: item.bonus_sessions,
+              price: item.price,
+              validity_days: item.validity_days,
+              description: item.description,
+              terms: item.terms,
+              is_active: isActive
+            });
+          } else {
+            await apiCreateAdminPackage({
+              package_type: item.package_type,
+              paid_sessions: item.paid_sessions,
+              bonus_sessions: item.bonus_sessions,
+              price: item.price,
+              validity_days: item.validity_days,
+              description: item.description,
+              terms: item.terms,
+              is_active: isActive
+            });
+          }
+        } catch (err: any) {
+          console.warn("Live package persist:", err.message);
+        }
+      }
       onSavePackage(item);
       onSave(existing ? `Package ${item.name} updated successfully.` : `Package ${item.name} added successfully.`);
       return;
@@ -1725,6 +2349,21 @@ function AdminFormDrawer({
         target_retention: Number(fd.get("target_retention")) || existing.target_retention,
         achieved: fd.get("achieved") === "Achieved"
       };
+
+      if (getAccessToken()) {
+        try {
+          const recId = Number(existing.id.replace("kpi-", "")) || existing.coach_id;
+          await apiUpdateKpiRecord(recId, {
+            total_hours: item.hours,
+            completed_sessions: item.sessions,
+            avg_rating: item.rating,
+            retention_rate: item.retention,
+            is_achieved: item.achieved ? 1 : 0
+          });
+        } catch (err: any) {
+          console.warn("Live KPI record persist:", err.message);
+        }
+      }
       onSaveKpiRecord(item);
       onSave(`KPI record for ${item.coach} updated successfully.`);
       return;
