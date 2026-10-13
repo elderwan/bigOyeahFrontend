@@ -265,6 +265,9 @@ export function FitBookingPrototype() {
   }, [account, authReady]);
 
   useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setAuthReady(true);
+    }, 600);
     try {
       const saved = readDemoSession();
       setAccount(saved);
@@ -414,6 +417,7 @@ export function FitBookingPrototype() {
     } finally {
       setAuthReady(true);
     }
+    return () => clearTimeout(safetyTimer);
   }, []);
 
   useEffect(() => {
@@ -581,7 +585,27 @@ export function FitBookingPrototype() {
 
   const toggleTag = (tag: string) => setReviewTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
 
-  if (!authReady) return <main className="auth-loading"><Brand /><p>Opening your FitBooking preview…</p></main>;
+  if (!authReady) {
+    return (
+      <main className="auth-loading">
+        <Brand />
+        <p>Opening your FitBooking preview…</p>
+        <div style={{ marginTop: "1rem", display: "flex", gap: "10px", justifyContent: "center" }}>
+          <a href="/signin" className="button button-glass" style={{ fontSize: "12px", padding: "6px 14px", textDecoration: "none", borderRadius: "999px" }}>
+            Sign in &rarr;
+          </a>
+          <button
+            type="button"
+            className="button button-glass"
+            style={{ fontSize: "12px", padding: "6px 14px", borderRadius: "999px" }}
+            onClick={() => setAuthReady(true)}
+          >
+            Enter now
+          </button>
+        </div>
+      </main>
+    );
+  }
   if (screen === "signin") return <SignInScreen onSignIn={handleSignIn} onNavigate={(target) => navigate(target as Screen)} />;
   if (screen === "signup") return <SignUpScreen onRegister={handleRegister} onNavigate={(target) => navigate(target as Screen)} />;
   if (screen === "trainerHome" || screen === "trainerSchedule" || screen === "trainerMessages" || screen === "trainerClients" || screen === "trainerProgress") {
