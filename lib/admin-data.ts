@@ -454,7 +454,7 @@ export const initialAdminCourses: AdminCourseItem[] = [
     course_name: "HIIT",
     description: "High-intensity interval training focusing on metabolic conditioning and functional agility.",
     difficulty: "BEGINNER",
-    default_duration: 45,
+    default_duration: 50,
     equipment: "Kettlebells, medicine balls, battle ropes, agility ladders",
     is_active: 1,
     assigned_coaches: "Coach Tan, Coach Jeff, Coach May"

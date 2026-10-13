@@ -129,7 +129,7 @@ const coaches = [
 
 const courses = [
   { name: "Strength & Conditioning", description: "Build strength. Improve performance.", duration: 60, price: 800, level: "Intermediate", image: "photo-1583454110551-21f2fa2afe61", kind: "Strength" },
-  { name: "HIIT", description: "High intensity. Fast burn.", duration: 45, price: 750, level: "Beginner", image: "photo-1517836357463-d25dfeac3438", kind: "Cardio" },
+  { name: "HIIT", description: "High intensity. Fast burn.", duration: 50, price: 750, level: "Beginner", image: "photo-1517836357463-d25dfeac3438", kind: "Cardio" },
   { name: "Mobility & Flexibility", description: "Move freely. Feel stronger.", duration: 60, price: 650, level: "All levels", image: "photo-1544367567-0f2fcb009e0b", kind: "Mobility" }
 ];
 

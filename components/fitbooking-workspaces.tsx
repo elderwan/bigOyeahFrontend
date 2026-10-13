@@ -477,8 +477,8 @@ function TrainerOverview({ account, navigate }: { account: PublicDemoAccount; na
 const demoSessions = [
   { member: "Nattakarn S.", initials: "NS", course: "Strength & Conditioning", time: "09:10 AM", length: "60 min", location: "Nimman Fitness Club", status: "Confirmed" },
   { member: "Mali P.", initials: "MP", course: "Mobility & Flexibility", time: "11:30 AM", length: "60 min", location: "Old City Studio", status: "Confirmed" },
-  { member: "Krit S.", initials: "KS", course: "Strength Foundations", time: "02:00 PM", length: "45 min", location: "Central Fitness", status: "Pending" },
-  { member: "Pimchanok R.", initials: "PR", course: "One-to-one HIIT", time: "04:30 PM", length: "45 min", location: "At home · Nimman", status: "Confirmed" }
+  { member: "Krit S.", initials: "KS", course: "Strength Foundations", time: "02:00 PM", length: "50 min", location: "Central Fitness", status: "Pending" },
+  { member: "Pimchanok R.", initials: "PR", course: "One-to-one HIIT", time: "04:30 PM", length: "50 min", location: "At home · Nimman", status: "Confirmed" }
 ];
 
 function TrainerSchedule() {
@@ -1549,13 +1549,18 @@ function AdminFormDrawer({
 
     if (kind === "booking") {
       const existing = targetItem as AdminBookingItem | null;
-      const dur = Number(fd.get("duration_minutes")) || 60;
-      const brk = Number(String(fd.get("break_minutes")).replace(/\D/g, "")) as (10 | 20 | 30) || 10;
-      const startTime = String(fd.get("start_time") || "08:00");
+      let dur = Number(fd.get("duration_minutes")) || 60;
+      dur = Math.max(10, Math.round(dur / 10) * 10);
+      let brk = Number(String(fd.get("break_minutes")).replace(/\D/g, "")) || 10;
+      brk = Math.max(10, Math.round(brk / 10) * 10) as (10 | 20 | 30);
+      let startTime = String(fd.get("start_time") || "08:00");
+      const [sh, sm] = startTime.split(":").map(Number);
+      const alignedSm = Math.min(50, Math.round((sm || 0) / 10) * 10);
+      startTime = `${String(sh || 8).padStart(2, "0")}:${String(alignedSm).padStart(2, "0")}`;
+
       let endTime = String(fd.get("end_time") || "");
       if (!endTime && startTime) {
-        const [sh, sm] = startTime.split(":").map(Number);
-        const totalMinutes = (sh || 0) * 60 + (sm || 0) + dur;
+        const totalMinutes = (sh || 0) * 60 + alignedSm + dur;
         const eh = Math.floor(totalMinutes / 60) % 24;
         const em = totalMinutes % 60;
         endTime = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
@@ -1665,13 +1670,15 @@ function AdminFormDrawer({
 
     if (kind === "course") {
       const existing = targetItem as AdminCourseItem | null;
+      const rawDur = Number(fd.get("default_duration")) || 60;
+      const safeDur = Math.max(10, Math.round(rawDur / 10) * 10);
       const item: AdminCourseItem = {
         id: existing ? existing.id : `course-${Date.now().toString().slice(-4)}`,
         course_id: existing ? existing.course_id : Math.floor(10 + Math.random() * 90),
         course_name: String(fd.get("course_name") || existing?.course_name || "New Course"),
         description: String(fd.get("description") || existing?.description || ""),
         difficulty: (fd.get("difficulty") as CourseDifficulty) || "INTERMEDIATE",
-        default_duration: Number(fd.get("default_duration")) || 60,
+        default_duration: safeDur,
         equipment: String(fd.get("equipment") || existing?.equipment || ""),
         is_active: fd.get("is_active") === "Draft" || fd.get("is_active") === "Paused" ? 0 : 1,
         assigned_coaches: String(fd.get("assigned_coaches") || existing?.assigned_coaches || "")
@@ -1859,8 +1866,8 @@ function AdminFormFields({
           <AdminFormField name="booking_date" label="Booking date" type="date" value={b?.booking_date || "2026-04-22"} />
         </div>
         <div className="admin-form-grid">
-          <AdminFormField name="start_time" label="Start time" type="time" value={b?.start_time || "08:00"} />
-          <AdminFormField name="duration_minutes" label="Duration (minutes)" type="number" value={b?.duration_minutes ?? 60} />
+          <AdminFormField name="start_time" label="Start time (10-minute grid)" type="time" step={600} value={b?.start_time || "08:00"} />
+          <AdminFormField name="duration_minutes" label="Duration (minutes, multiple of 10)" type="number" min={10} step={10} value={b?.duration_minutes ?? 60} />
         </div>
         <AdminFormField name="break_minutes" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={b ? `${b.break_minutes} minutes` : "10 minutes"} />
       </AdminFormSection>
@@ -2010,7 +2017,7 @@ function AdminFormFields({
         <AdminFormField name="course_name" label="Course name" value={cr?.course_name || ""} placeholder="Strength & Conditioning" />
         <div className="admin-form-grid">
           <AdminFormField name="difficulty" label="Difficulty" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED"]} value={cr?.difficulty || "INTERMEDIATE"} />
-          <AdminFormField name="default_duration" label="Default duration (minutes, multiple of 10)" type="number" value={cr?.default_duration ?? 60} />
+          <AdminFormField name="default_duration" label="Default duration (minutes, multiple of 10)" type="number" min={10} step={10} value={cr?.default_duration ?? 60} />
         </div>
         <AdminFormField name="equipment" label="Equipment" value={cr?.equipment || ""} placeholder="Racks, barbells, benches" />
         <AdminFormField name="description" label="Description" value={cr?.description || ""} placeholder="Build strength. Improve performance." multiline />
@@ -2102,7 +2109,9 @@ function AdminFormField({
   value = "",
   options = [],
   multiline = false,
-  step
+  step,
+  min,
+  max
 }: {
   name?: string;
   label: string;
@@ -2111,8 +2120,23 @@ function AdminFormField({
   value?: string | number;
   options?: string[];
   multiline?: boolean;
-  step?: string;
+  step?: string | number;
+  min?: string | number;
+  max?: string | number;
 }) {
+  const isMinuteOperation =
+    type === "number" &&
+    (name?.includes("duration") ||
+      name?.includes("minute") ||
+      String(step) === "10" ||
+      (typeof label === "string" &&
+        (label.toLowerCase().includes("duration") ||
+          label.toLowerCase().includes("minute") ||
+          label.toLowerCase().includes("multiple of 10"))));
+
+  const effectiveStep = isMinuteOperation ? (step ?? 10) : type === "time" ? (step ?? 600) : step;
+  const effectiveMin = isMinuteOperation ? (min ?? 10) : min;
+
   return <label className="admin-form-field">
     <span>{label}</span>
     {type === "select" ? (
@@ -2122,7 +2146,36 @@ function AdminFormField({
     ) : multiline ? (
       <textarea name={name} defaultValue={String(value)} placeholder={placeholder} rows={3} />
     ) : (
-      <input name={name} type={type} step={step} defaultValue={value} placeholder={placeholder} />
+      <input
+        name={name}
+        type={type}
+        step={effectiveStep}
+        min={effectiveMin}
+        max={max}
+        defaultValue={value}
+        placeholder={placeholder}
+        onBlur={(e) => {
+          if (isMinuteOperation) {
+            const raw = parseInt(e.target.value, 10);
+            if (!isNaN(raw)) {
+              const rounded = Math.max(10, Math.round(raw / 10) * 10);
+              if (rounded !== raw) {
+                e.target.value = String(rounded);
+              }
+            }
+          } else if (type === "time" && e.target.value) {
+            const parts = e.target.value.split(":");
+            if (parts.length >= 2) {
+              const h = parseInt(parts[0], 10);
+              const m = parseInt(parts[1], 10);
+              if (!isNaN(h) && !isNaN(m)) {
+                const roundedM = Math.min(50, Math.round(m / 10) * 10);
+                e.target.value = `${String(h).padStart(2, "0")}:${String(roundedM).padStart(2, "0")}`;
+              }
+            }
+          }
+        }}
+      />
     )}
   </label>;
 }

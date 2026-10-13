@@ -129,7 +129,7 @@ export const preview_courses: Course[] = [
     description: "High-intensity interval training.",
     equipment: null,
     difficulty: "BEGINNER",
-    default_duration: 45,
+    default_duration: 50,
     is_active: 1,
     created_at: "2026-01-01 00:00:00",
     updated_at: "2026-01-01 00:00:00"
