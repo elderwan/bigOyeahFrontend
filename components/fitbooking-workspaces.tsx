@@ -717,19 +717,40 @@ function AdminPackageList({
   onToggle: (id: string) => void;
 }) {
   return <section className="workspace-panel admin-package-list">
-    <div className="section-title"><div><h2>Member packages</h2><p>Configure the 5+1, 10+3, and 20+7 catalogue plans from member_package rules.</p></div><span className="pill"><Wallet size={13} /> 180-day validity</span></div>
+    <div className="section-title">
+      <div>
+        <h2>Member packages</h2>
+        <p>Configure the 5+1, 10+3, and 20+7 catalogue plans from member_package rules.</p>
+      </div>
+      <span className="pill"><Wallet size={13} /> 180-day validity</span>
+    </div>
     {packages.map((item) => (
       <div className="admin-catalog-row" key={item.id}>
-        <span className="admin-task-icon"><Wallet size={16} /></span>
-        <span>
-          <b>{item.name}</b>
-          <small>{item.total_sessions} sessions ({item.paid_sessions} paid + {item.bonus_sessions} bonus) · ฿{item.price.toLocaleString()}</small>
-          <small>{item.validity_days} days validity · ฿{Math.round(item.price / (item.paid_sessions || 1))} per paid session</small>
-        </span>
-        <Pill className={item.status === "Available" ? "confirmed-pill" : "gold-pill"}>{item.status}</Pill>
-        <button className="button button-outline" onClick={() => onOpen(item.id)}>Details</button>
-        <button className="button button-outline" onClick={() => onEdit(item.id)}><Pencil size={13} /> Edit</button>
-        <button className="icon-button" aria-label={`Toggle ${item.name}`} onClick={() => onToggle(item.id)}><MoreHorizontal size={17} /></button>
+        <div className="admin-catalog-main">
+          <span className="admin-task-icon"><Wallet size={16} /></span>
+          <div className="admin-catalog-body">
+            <div className="admin-catalog-title-line">
+              <b>{item.name}</b>
+              <Pill className={item.status === "Available" ? "confirmed-pill" : "gold-pill"}>{item.status}</Pill>
+            </div>
+            <div className="admin-catalog-sub">
+              <span>{item.total_sessions} sessions ({item.paid_sessions} paid + {item.bonus_sessions} bonus) · ฿{item.price.toLocaleString()}</span>
+              <span>{item.validity_days} days validity · ฿{Math.round(item.price / (item.paid_sessions || 1))} per paid session</span>
+            </div>
+          </div>
+        </div>
+        <div className="admin-row-actions">
+          <button className="button button-outline action-btn-secondary" onClick={() => onOpen(item.id)}>
+            <span>Details</span>
+          </button>
+          <button className="button button-outline action-btn-edit" onClick={() => onEdit(item.id)}>
+            <Pencil size={12} />
+            <span>Edit</span>
+          </button>
+          <button className="icon-button action-btn-more" aria-label={`Toggle ${item.name}`} onClick={() => onToggle(item.id)}>
+            <MoreHorizontal size={15} />
+          </button>
+        </div>
       </div>
     ))}
   </section>;
@@ -957,17 +978,33 @@ function AdminTable({
 }) {
   return <div className="workspace-panel admin-table-wrap">
     <table className="admin-table">
-      <thead><tr><th>Record</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead>
+        <tr>
+          <th className="th-record">Record</th>
+          <th className="th-details">Details</th>
+          <th className="th-status">Status</th>
+          <th className="th-actions">Actions</th>
+        </tr>
+      </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.id}>
-            <td><button className="admin-table-record" onClick={() => onOpen(row.id)}><b>{row.name}</b><span>Open details</span></button></td>
-            <td>{row.detail}<small>{row.extra}</small></td>
-            <td><span className={`booking-status ${row.status.toLowerCase().replaceAll(" ", "-")}`}>{row.status}</span></td>
-            <td>
-              <button className="button button-outline" onClick={() => onEdit(row.id)}><Pencil size={13} /> Edit</button>
-              <button className="button button-outline" onClick={() => action(row.id)}>{row.status === "Confirmed" ? "Complete" : actionText}</button>
-              <button className="icon-button" aria-label={`More actions for ${row.name}`} onClick={() => onOpen(row.id)}><MoreHorizontal size={16} /></button>
+            <td className="td-record"><button className="admin-table-record" onClick={() => onOpen(row.id)}><b>{row.name}</b><span>Open details</span></button></td>
+            <td className="td-details">{row.detail}<small>{row.extra}</small></td>
+            <td className="td-status"><span className={`booking-status ${row.status.toLowerCase().replaceAll(" ", "-")}`}>{row.status}</span></td>
+            <td className="td-actions">
+              <div className="admin-row-actions">
+                <button className="button button-outline action-btn-edit" onClick={() => onEdit(row.id)}>
+                  <Pencil size={12} />
+                  <span>Edit</span>
+                </button>
+                <button className="button button-outline action-btn-status" onClick={() => action(row.id)}>
+                  <span>{row.status === "Confirmed" ? "Complete" : actionText}</span>
+                </button>
+                <button className="icon-button action-btn-more" aria-label={`More actions for ${row.name}`} onClick={() => onOpen(row.id)}>
+                  <MoreHorizontal size={15} />
+                </button>
+              </div>
             </td>
           </tr>
         ))}
@@ -1277,7 +1314,14 @@ function AdminFormDrawer({
 
   return <div className="admin-drawer-backdrop" role="presentation" onClick={onClose}><aside className="admin-form-drawer" role="dialog" aria-modal="true" aria-label={info.title} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{info.eyebrow}</span><h2>{info.title}</h2><p>{info.description}</p></div><button className="icon-button" aria-label="Close form" onClick={onClose}><X size={19} /></button></header>
     <form className="admin-form" onSubmit={handleSubmit}>
-      <AdminFormFields kind={kind} targetItem={targetItem} />
+      <AdminFormFields
+        kind={kind}
+        targetItem={targetItem}
+        locations={locations}
+        courses={courses}
+        coaches={coaches}
+        members={members}
+      />
       <div className="admin-form-note"><ShieldCheck size={14} /><span>Preview modifications are reactive and update the local admin management state immediately.</span></div>
       <footer>
         <button type="button" className="button button-outline" onClick={onClose}>Cancel</button>
@@ -1287,26 +1331,118 @@ function AdminFormDrawer({
   </aside></div>;
 }
 
-function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetItem?: any }) {
+function AdminChipSelector({
+  name,
+  label,
+  hint,
+  options,
+  value,
+  badgeMap
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  options: string[];
+  value?: string;
+  badgeMap?: Record<string, string>;
+}) {
+  const parseSelected = (val?: string) =>
+    val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+  const [selected, setSelected] = useState<string[]>(() => parseSelected(value));
+
+  useEffect(() => {
+    setSelected(parseSelected(value));
+  }, [value]);
+
+  const toggle = (opt: string) => {
+    setSelected((prev) =>
+      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]
+    );
+  };
+
+  const selectAll = () => setSelected(options);
+  const clearAll = () => setSelected([]);
+
+  return (
+    <div className="admin-chip-selector">
+      <div className="admin-chip-header">
+        <label>{label}</label>
+        <div className="admin-chip-actions">
+          <span className="admin-chip-count">{selected.length} / {options.length} selected</span>
+          <button type="button" onClick={selectAll}>Select all</button>
+          <span className="admin-chip-sep">·</span>
+          <button type="button" onClick={clearAll}>Clear</button>
+        </div>
+      </div>
+      <input type="hidden" name={name} value={selected.join(", ")} />
+      <div className="admin-chip-grid">
+        {options.map((opt) => {
+          const isSel = selected.includes(opt);
+          const badge = badgeMap?.[opt];
+          return (
+            <button
+              key={opt}
+              type="button"
+              className={`admin-chip-item ${isSel ? "selected" : ""}`}
+              onClick={() => toggle(opt)}
+            >
+              <span className="chip-icon">
+                {isSel ? <Check size={12} strokeWidth={2.6} /> : <Plus size={12} />}
+              </span>
+              <span className="chip-label">{opt}</span>
+              {badge && <span className="chip-badge">{badge}</span>}
+            </button>
+          );
+        })}
+        {!options.length && <span className="admin-chip-empty">No options configured yet</span>}
+      </div>
+      {hint && <span className="admin-chip-hint">{hint}</span>}
+    </div>
+  );
+}
+
+function AdminFormFields({
+  kind,
+  targetItem,
+  locations = [],
+  courses = [],
+  coaches = [],
+  members = []
+}: {
+  kind: AdminModalKind;
+  targetItem?: any;
+  locations?: AdminLocationItem[];
+  courses?: AdminCourseItem[];
+  coaches?: AdminCoachItem[];
+  members?: AdminMemberItem[];
+}) {
   if (kind === "booking") {
     const b = targetItem as AdminBookingItem | undefined;
+    const memberOptions = members.length ? members.map((m) => m.display_name) : ["Alex Morgan", "Krit S.", "Mali P.", "Nattakarn S."];
+    const coachOptions = coaches.length ? coaches.map((c) => c.display_name) : ["Tan Chaiyaporn", "May Suthida", "Jeff Nopparat", "Ploy Rattanakorn"];
+    const courseOptions = courses.length ? courses.map((cr) => cr.course_name) : ["Strength & Conditioning", "HIIT", "Mobility & Flexibility", "Power Foundations"];
+    const gymOptions = locations.length ? locations.map((l) => l.gym_name) : ["Nimman Fitness Club", "Old City Studio", "Central Fitness", "Hang Dong Training Room"];
+
     return <>
       <AdminFormSection title="Booking session">
-        <AdminFormField name="member_name" label="Member name" value={b?.member_name || ""} placeholder="e.g. Alex Morgan" />
-        <AdminFormField name="coach_name" label="Coach name" value={b?.coach_name || ""} placeholder="e.g. Tan Chaiyaporn" />
-        <AdminFormField name="course_name" label="Course" value={b?.course_name || ""} placeholder="e.g. Strength & Conditioning" />
         <div className="admin-form-grid">
+          <AdminFormField name="member_name" label="Member name" type="select" options={memberOptions} value={b?.member_name || memberOptions[0]} />
+          <AdminFormField name="coach_name" label="Coach name" type="select" options={coachOptions} value={b?.coach_name || coachOptions[0]} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="course_name" label="Course" type="select" options={courseOptions} value={b?.course_name || courseOptions[0]} />
           <AdminFormField name="booking_date" label="Booking date" type="date" value={b?.booking_date || "2026-04-22"} />
-          <AdminFormField name="start_time" label="Start time" type="time" value={b?.start_time || "08:00"} />
         </div>
         <div className="admin-form-grid">
+          <AdminFormField name="start_time" label="Start time" type="time" value={b?.start_time || "08:00"} />
           <AdminFormField name="duration_minutes" label="Duration (minutes)" type="number" value={b?.duration_minutes ?? 60} />
-          <AdminFormField name="break_minutes" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={b ? `${b.break_minutes} minutes` : "10 minutes"} />
         </div>
+        <AdminFormField name="break_minutes" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={b ? `${b.break_minutes} minutes` : "10 minutes"} />
       </AdminFormSection>
       <AdminFormSection title="Service & Location">
         <AdminFormField name="service_mode" label="Service mode" type="select" options={["GYM", "HOME"]} value={b?.service_mode || "GYM"} />
-        <AdminFormField name="gym_name" label="Gym location (if GYM)" value={b?.gym_name || "Nimman Fitness Club"} placeholder="e.g. Nimman Fitness Club" />
+        <AdminFormField name="gym_name" label="Gym location (if GYM)" type="select" options={gymOptions} value={b?.gym_name || gymOptions[0]} />
         <div className="admin-form-grid">
           <AdminFormField name="service_district" label="Service district (if HOME)" type="select" options={["NIMMAN", "OLD_CITY", "CENTRAL", "MAE_RIM", "HANG_DONG"]} value={b?.service_district || "NIMMAN"} />
           <AdminFormField name="service_address" label="Service address (if HOME)" value={b?.service_address || ""} placeholder="Street address in Chiang Mai" />
@@ -1359,6 +1495,11 @@ function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetIte
 
   if (kind === "trainer") {
     const c = targetItem as AdminCoachItem | undefined;
+    const locationOptions = locations.length ? locations.map((l) => l.gym_name) : ["Nimman Fitness Club", "Old City Studio", "Central Fitness", "Hang Dong Training Room"];
+    const courseOptions = courses.length ? courses.map((cr) => cr.course_name) : ["Strength & Conditioning", "HIIT", "Mobility & Flexibility", "Power Foundations"];
+    const locationBadges = Object.fromEntries(locations.map((l) => [l.gym_name, l.district]));
+    const courseBadges = Object.fromEntries(courses.map((cr) => [cr.course_name, cr.difficulty]));
+
     return <>
       <AdminFormSection title="Account & Identity">
         <AdminFormField name="display_name" label="Full name" value={c?.display_name || ""} placeholder="Ploy Rattanakorn" />
@@ -1380,8 +1521,22 @@ function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetIte
           <AdminFormField name="service_mode" label="Service mode" type="select" options={["GYM", "HOME", "BOTH"]} value={c?.service_mode || "BOTH"} />
           <AdminFormField name="break_interval" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={c ? `${c.break_interval} minutes` : "10 minutes"} />
         </div>
-        <AdminFormField name="assigned_locations" label="Assigned locations" value={c?.assigned_locations || ""} placeholder="Nimman Fitness Club, Old City Studio" />
-        <AdminFormField name="courses_taught" label="Courses taught" value={c?.courses_taught || ""} placeholder="Strength & Conditioning, Mobility" />
+        <AdminChipSelector
+          name="assigned_locations"
+          label="Assigned locations (select from active gyms)"
+          hint="Select existing gym locations where this trainer can coach members."
+          options={locationOptions}
+          value={c?.assigned_locations}
+          badgeMap={locationBadges}
+        />
+        <AdminChipSelector
+          name="courses_taught"
+          label="Courses taught (select from catalogue)"
+          hint="Select existing courses from the catalogue that this trainer coaches."
+          options={courseOptions}
+          value={c?.courses_taught}
+          badgeMap={courseBadges}
+        />
         <div className="admin-form-grid">
           <AdminFormField name="hired_at" label="Hire date" type="date" value={c?.hired_at || "2023-01-01"} />
           <AdminFormField name="rating" label="Coach rating (1-5)" type="number" step="0.1" value={c?.rating ?? 4.8} />
@@ -1423,6 +1578,9 @@ function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetIte
 
   if (kind === "course") {
     const cr = targetItem as AdminCourseItem | undefined;
+    const coachOptions = coaches.length ? coaches.map((ch) => ch.display_name) : ["Tan Chaiyaporn", "May Suthida", "Jeff Nopparat", "Ploy Rattanakorn"];
+    const coachBadges = Object.fromEntries(coaches.map((ch) => [ch.display_name, ch.coach_level]));
+
     return <>
       <AdminFormSection title="Course catalogue">
         <AdminFormField name="course_name" label="Course name" value={cr?.course_name || ""} placeholder="Strength & Conditioning" />
@@ -1434,7 +1592,14 @@ function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetIte
         <AdminFormField name="description" label="Description" value={cr?.description || ""} placeholder="Build strength. Improve performance." multiline />
       </AdminFormSection>
       <AdminFormSection title="Coach assignments & Status">
-        <AdminFormField name="assigned_coaches" label="Assigned coaches" value={cr?.assigned_coaches || ""} placeholder="Coach Tan, Coach May" />
+        <AdminChipSelector
+          name="assigned_coaches"
+          label="Assigned coaches (select from roster)"
+          hint="Select existing verified coaches qualified to lead this course."
+          options={coachOptions}
+          value={cr?.assigned_coaches}
+          badgeMap={coachBadges}
+        />
         <AdminFormField name="is_active" label="Catalogue status" type="select" options={["Active", "Draft", "Paused"]} value={cr ? (cr.is_active === 1 ? "Active" : "Draft") : "Active"} />
       </AdminFormSection>
     </>;
