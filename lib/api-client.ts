@@ -12,10 +12,19 @@
  *   4. PATCH /members/me     -> Update member profile fields
  */
 
-export const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1";
+export const DEFAULT_API_BASE_URL = "http://10.195.90.63:8000/api/v1";
 export const TOKEN_STORAGE_KEY = "fitbooking_access_token";
+export const API_URL_STORAGE_KEY = "fitbooking_custom_api_url";
 
 export function getApiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    try {
+      const custom = window.localStorage.getItem(API_URL_STORAGE_KEY);
+      if (custom && custom.trim()) return custom.trim();
+    } catch {
+      // ignore
+    }
+  }
   if (typeof process !== "undefined") {
     if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
     if (process.env.NEXT_PUBLIC_API_BASE_URL) {
@@ -24,6 +33,19 @@ export function getApiBaseUrl(): string {
     }
   }
   return DEFAULT_API_BASE_URL;
+}
+
+export function setCustomApiUrl(url: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!url) {
+      window.localStorage.removeItem(API_URL_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(API_URL_STORAGE_KEY, url);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export function getAccessToken(): string | null {
