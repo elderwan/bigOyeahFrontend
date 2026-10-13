@@ -13,6 +13,33 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   DEMO_MESSAGES_KEY, DemoRole, PublicDemoAccount
 } from "@/lib/demo-auth";
+import {
+  AdminBookingItem,
+  AdminCoachItem,
+  AdminCourseItem,
+  AdminKpiRecordItem,
+  AdminKpiRuleItem,
+  AdminLocationItem,
+  AdminMemberItem,
+  AdminPackageItem,
+  initialAdminBookings,
+  initialAdminCoaches,
+  initialAdminCourses,
+  initialAdminKpiRecords,
+  initialAdminKpiRules,
+  initialAdminLocations,
+  initialAdminMembers,
+  initialAdminPackages
+} from "@/lib/admin-data";
+import type {
+  BookingStatus,
+  CancelledBy,
+  CoachLevel,
+  CoachServiceMode,
+  CourseDifficulty,
+  District,
+  PackageType
+} from "@/lib/database";
 
 type Navigate = (screen: string) => void;
 
@@ -374,64 +401,9 @@ const adminNav: readonly (readonly [string, string, LucideIcon])[] = [
 ];
 
 type AdminStatus = "Active" | "Pending" | "Paused" | "Available" | "Draft" | "On leave" | "Needs review" | "Confirmed" | "Completed" | "Achieved" | "At risk";
-type AdminDetailType = "member" | "coach" | "package" | "location" | "course";
+type AdminDetailType = "member" | "coach" | "package" | "location" | "course" | "booking";
 type AdminRow = { id: string; name: string; detail: string; extra: string; status: AdminStatus };
 type AdminModalKind = "trainer" | "member" | "location" | "course" | "package" | "booking" | "kpi" | "workflow" | "filters" | "auditFilters" | "report";
-
-const adminMembers: AdminRow[] = [
-  { id: "member-alex", name: "Alex Morgan", detail: "alex.morgan@example.com", extra: "Gold member · ฿22,150 spend", status: "Active" },
-  { id: "member-nattakarn", name: "Nattakarn S.", detail: "nattakarn@example.com", extra: "Silver member · 8 sessions left", status: "Active" },
-  { id: "member-mali", name: "Mali P.", detail: "mali@example.com", extra: "Bronze member · 3 sessions left", status: "Active" },
-  { id: "member-krit", name: "Krit S.", detail: "krit@example.com", extra: "Bronze member · profile incomplete", status: "Pending" }
-];
-
-const adminCoaches: AdminRow[] = [
-  { id: "coach-tan", name: "Tan Chaiyaporn", detail: "Coach no. 1001 · Strength & Conditioning", extra: "Advanced · 4.9 rating · 6 years", status: "Active" },
-  { id: "coach-may", name: "May Suthida", detail: "Coach no. 1002 · Mobility & Wellness", extra: "Intermediate · 4.8 rating · 4 years", status: "Active" },
-  { id: "coach-jeff", name: "Jeff Nopparat", detail: "Coach no. 1003 · Functional Fitness", extra: "Master · 4.9 rating · 9 years", status: "Active" },
-  { id: "coach-ploy", name: "Ploy Rattanakorn", detail: "Coach no. 1004 · Yoga & Mobility", extra: "Advanced · documents to review", status: "Needs review" }
-];
-
-const adminBookings: AdminRow[] = [
-  { id: "booking-24016", name: "Nattakarn S. · Coach Tan", detail: "Strength & Conditioning · Apr 16 · 09:10", extra: "Nimman Fitness Club · ฿800", status: "Confirmed" },
-  { id: "booking-24018", name: "Mali P. · Coach May", detail: "Mobility & Flexibility · Apr 18 · 17:00", extra: "Old City Studio · ฿750", status: "Pending" },
-  { id: "booking-24020", name: "Krit S. · Coach Jeff", detail: "HIIT · Apr 20 · 10:30", extra: "Central Fitness · ฿750", status: "Confirmed" },
-  { id: "booking-24021", name: "Alex Morgan · Coach Tan", detail: "Strength & Conditioning · Apr 22 · 08:00", extra: "Home service · ฿800", status: "Completed" }
-];
-
-const adminLocations: AdminRow[] = [
-  { id: "gym-nimman", name: "Nimman Fitness Club", detail: "NIMMAN · 06:00–22:00", extra: "8 coaches · Strength, HIIT, Mobility", status: "Active" },
-  { id: "gym-old-city", name: "Old City Studio", detail: "OLD CITY · 07:00–21:00", extra: "5 coaches · Mobility, Yoga", status: "Active" },
-  { id: "gym-central", name: "Central Fitness", detail: "CENTRAL · 06:00–23:00", extra: "11 coaches · Full equipment floor", status: "Active" },
-  { id: "gym-hang-dong", name: "Hang Dong Training Room", detail: "HANG DONG · 08:00–20:00", extra: "2 coaches · Small group setup", status: "Paused" }
-];
-
-const adminCourses: AdminRow[] = [
-  { id: "course-strength", name: "Strength & Conditioning", detail: "INTERMEDIATE · 60 minutes", extra: "3 coaches · Equipment: racks, barbells", status: "Available" },
-  { id: "course-hiit", name: "HIIT", detail: "BEGINNER · 45 minutes", extra: "4 coaches · Equipment: mats, kettlebells", status: "Available" },
-  { id: "course-mobility", name: "Mobility & Flexibility", detail: "BEGINNER · 60 minutes", extra: "3 coaches · Equipment: bands, blocks", status: "Available" },
-  { id: "course-power", name: "Power Foundations", detail: "ADVANCED · 50 minutes", extra: "1 coach · Draft catalogue entry", status: "Draft" }
-];
-
-const adminPackages: AdminRow[] = [
-  { id: "package-5-1", name: "5+1 Sessions", detail: "6 total sessions · ฿3,400", extra: "180 days · ฿680 per paid session", status: "Available" },
-  { id: "package-10-3", name: "10+3 Sessions", detail: "13 total sessions · ฿8,970", extra: "180 days · ฿690 per session", status: "Available" },
-  { id: "package-20-7", name: "20+7 Sessions", detail: "27 total sessions · ฿17,550", extra: "180 days · ฿650 per session", status: "Available" }
-];
-
-const adminKpiRules = [
-  { level: "BEGINNER", hours: 40, rating: 4, retention: 30 },
-  { level: "INTERMEDIATE", hours: 60, rating: 4.2, retention: 40 },
-  { level: "ADVANCED", hours: 80, rating: 4.4, retention: 50 },
-  { level: "MASTER", hours: 100, rating: 4.6, retention: 60 }
-];
-
-const adminKpiRecords = [
-  { id: "coach-tan", coach: "Tan Chaiyaporn", level: "ADVANCED", hours: 92.5, sessions: 74, rating: 4.9, retention: 68, achieved: true },
-  { id: "coach-may", coach: "May Suthida", level: "INTERMEDIATE", hours: 58.5, sessions: 47, rating: 4.8, retention: 45, achieved: false },
-  { id: "coach-jeff", coach: "Jeff Nopparat", level: "MASTER", hours: 108, sessions: 81, rating: 4.9, retention: 72, achieved: true },
-  { id: "coach-ploy", coach: "Ploy Rattanakorn", level: "ADVANCED", hours: 76, sessions: 61, rating: 4.3, retention: 41, achieved: false }
-];
 
 function AdminWorkspace({ screen, account, navigate, onSignOut }: { screen: string; account: PublicDemoAccount; navigate: Navigate; onSignOut: () => void }) {
   const activeSection = adminNav.find(([key]) => key === screen)?.[1] || "Overview";
@@ -447,7 +419,15 @@ function AdminWorkspace({ screen, account, navigate, onSignOut }: { screen: stri
 }
 
 function AdminContent({ active }: { active: string }) {
-  const [status, setStatus] = useState<Record<string, AdminStatus>>({});
+  const [bookings, setBookings] = useState<AdminBookingItem[]>(initialAdminBookings);
+  const [members, setMembers] = useState<AdminMemberItem[]>(initialAdminMembers);
+  const [coaches, setCoaches] = useState<AdminCoachItem[]>(initialAdminCoaches);
+  const [locations, setLocations] = useState<AdminLocationItem[]>(initialAdminLocations);
+  const [courses, setCourses] = useState<AdminCourseItem[]>(initialAdminCourses);
+  const [packages, setPackages] = useState<AdminPackageItem[]>(initialAdminPackages);
+  const [rules, setRules] = useState<AdminKpiRuleItem[]>(initialAdminKpiRules);
+  const [kpiRecords, setKpiRecords] = useState<AdminKpiRecordItem[]>(initialAdminKpiRecords);
+
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [detail, setDetail] = useState<{ type: AdminDetailType; id: string } | null>(null);
@@ -455,7 +435,6 @@ function AdminContent({ active }: { active: string }) {
   const [editTarget, setEditTarget] = useState<{ kind: AdminModalKind; id: string } | null>(null);
   const [kpiMonth, setKpiMonth] = useState("April 2026");
   const [editingRule, setEditingRule] = useState("");
-  const [rules, setRules] = useState(adminKpiRules);
 
   useEffect(() => {
     setQuery("");
@@ -464,11 +443,6 @@ function AdminContent({ active }: { active: string }) {
     setEditTarget(null);
   }, [active]);
 
-  const updateStatus = (id: string, current: AdminStatus, next?: AdminStatus) => {
-    const fallback: AdminStatus = current === "Active" ? "Paused" : current === "Paused" ? "Active" : current === "Available" ? "Paused" : current === "Confirmed" ? "Completed" : "Active";
-    setStatus((value) => ({ ...value, [id]: next || fallback }));
-  };
-  const currentStatus = (row: AdminRow) => status[row.id] || row.status;
   const openDetail = (type: AdminDetailType, id: string) => setDetail({ type, id });
   const openEditor = (kind: AdminModalKind, id: string) => {
     setDetail(null);
@@ -479,44 +453,286 @@ function AdminContent({ active }: { active: string }) {
     setModal(null);
     setEditTarget(null);
   };
+
+  const handleToggleBooking = (id: string) => {
+    setBookings((prev) => prev.map((b) => {
+      if (b.id !== id) return b;
+      const nextStatus: BookingStatus = b.status === "CONFIRMED" ? "COMPLETED" : b.status === "PENDING" ? "CONFIRMED" : "CONFIRMED";
+      return { ...b, status: nextStatus };
+    }));
+    setNotice("Booking status updated in this preview.");
+  };
+
+  const handleToggleMember = (id: string) => {
+    setMembers((prev) => prev.map((m) => {
+      if (m.id !== id) return m;
+      return { ...m, status: m.status === "ACTIVE" ? "DISABLED" : "ACTIVE" };
+    }));
+    setNotice("Member account status updated.");
+  };
+
+  const handleToggleCoach = (id: string) => {
+    setCoaches((prev) => prev.map((c) => {
+      if (c.id !== id) return c;
+      const next = c.status === "ACTIVE" ? "ON_LEAVE" : "ACTIVE";
+      return { ...c, status: next };
+    }));
+    setNotice("Trainer status updated.");
+  };
+
+  const handleToggleLocation = (id: string) => {
+    setLocations((prev) => prev.map((l) => {
+      if (l.id !== id) return l;
+      return { ...l, is_active: l.is_active === 1 ? 0 : 1 };
+    }));
+    setNotice("Location active status toggled.");
+  };
+
+  const handleToggleCourse = (id: string) => {
+    setCourses((prev) => prev.map((c) => {
+      if (c.id !== id) return c;
+      return { ...c, is_active: c.is_active === 1 ? 0 : 1 };
+    }));
+    setNotice("Course catalogue status updated.");
+  };
+
+  const handleTogglePackage = (id: string) => {
+    setPackages((prev) => prev.map((p) => {
+      if (p.id !== id) return p;
+      return { ...p, status: p.status === "Available" ? "Paused" : "Available" };
+    }));
+    setNotice("Package catalogue status updated.");
+  };
+
+  const recalculateKpiSnapshots = () => {
+    setKpiRecords((prev) => prev.map((rec) => {
+      const rule = rules.find((r) => r.level === rec.level);
+      if (!rule) return rec;
+      const achieved = (rec.hours >= rule.hours) && (rec.rating >= rule.rating) && (rec.retention >= rule.retention);
+      return {
+        ...rec,
+        target_hours: rule.hours,
+        target_rating: rule.rating,
+        target_retention: rule.retention,
+        achieved
+      };
+    }));
+    setNotice("Monthly coach KPI snapshots recalculated against current kpi_rule targets.");
+  };
+
+  // Mapped display rows
+  const bookingRows: AdminRow[] = bookings.map((b) => ({
+    id: b.id,
+    name: `${b.member_name} · ${b.coach_name}`,
+    detail: `${b.course_name} · ${b.booking_date} · ${b.start_time}`,
+    extra: `${b.service_mode === "GYM" ? (b.gym_name || "Gym") : `Home (${b.service_district || ""})`} · ฿${b.price.toLocaleString()}`,
+    status: b.status === "CONFIRMED" ? "Confirmed" : b.status === "PENDING" ? "Pending" : b.status === "COMPLETED" ? "Completed" : "Paused"
+  }));
+
+  const memberRows: AdminRow[] = members.map((m) => ({
+    id: m.id,
+    name: m.display_name,
+    detail: `${m.email} · ${m.phone}`,
+    extra: `${m.level_code} member · ฿${m.total_spend.toLocaleString()} spend · ${m.remaining_sessions} sessions left`,
+    status: m.status === "ACTIVE" ? "Active" : "Paused"
+  }));
+
+  const coachRows: AdminRow[] = coaches.map((c) => ({
+    id: c.id,
+    name: c.display_name,
+    detail: `Coach no. ${c.coach_no} · ${c.courses_taught}`,
+    extra: `${c.coach_level} · ⭐ ${c.rating.toFixed(1)} · ${c.years_experience} yrs · ${c.service_mode}`,
+    status: c.status === "ACTIVE" ? "Active" : c.status === "ON_LEAVE" ? "On leave" : "Needs review"
+  }));
+
+  const locationRows: AdminRow[] = locations.map((l) => ({
+    id: l.id,
+    name: l.gym_name,
+    detail: `${l.district} · ${l.opening_time}–${l.closing_time}`,
+    extra: `${l.facilities}`,
+    status: l.is_active === 1 ? "Active" : "Paused"
+  }));
+
+  const courseRows: AdminRow[] = courses.map((c) => ({
+    id: c.id,
+    name: c.course_name,
+    detail: `${c.difficulty} · ${c.default_duration} minutes`,
+    extra: `Equipment: ${c.equipment}`,
+    status: c.is_active === 1 ? "Available" : "Draft"
+  }));
+
   const heading = active === "Overview" ? "The whole operation, at a glance." : active === "KPI" ? "Coach performance, made actionable." : `${active} management`;
   const description = active === "Overview" ? "Keep each part of the Chiang Mai training community moving." : active === "KPI" ? "Review monthly snapshots against the rules that keep the coaching team growing." : "Review records, make careful changes, and keep the operation easy to understand.";
   const actionLabel = active === "Overview" ? "Add trainer" : active === "Locations" ? "Add location" : active === "Courses" ? "Add course" : active === "Packages" ? "Add package" : active === "Members" ? "Add member" : active === "Trainers" ? "Add trainer" : active === "Bookings" ? "Create booking" : active === "Reports" ? "Build report" : active === "Audit log" ? "Add audit filter" : active === "Settings" ? "Add setting" : "New workflow";
   const actionKind = active === "Overview" || active === "Trainers" ? "trainer" : active === "Locations" ? "location" : active === "Courses" ? "course" : active === "Packages" ? "package" : active === "Members" ? "member" : active === "Bookings" ? "booking" : active === "Reports" ? "report" : active === "Audit log" ? "auditFilters" : active === "KPI" ? "workflow" : "workflow";
 
-  const renderDirectory = (rows: AdminRow[], type: AdminDetailType, placeholder: string, actionText: string, editKind: AdminModalKind) => {
-    const visibleRows = rows.filter((row) => `${row.name} ${row.detail} ${row.extra} ${currentStatus(row)}`.toLowerCase().includes(query.toLowerCase()));
-    return <><AdminFilters query={query} setQuery={setQuery} placeholder={placeholder} onOpenFilters={() => setModal("filters")} /><AdminTable rows={visibleRows} onOpen={(id) => openDetail(type, id)} onEdit={(id) => openEditor(editKind, id)} action={(id, current) => updateStatus(id, current)} actionText={actionText} status={status} /></>;
+  const renderDirectory = (rows: AdminRow[], type: AdminDetailType, placeholder: string, actionText: string, editKind: AdminModalKind, onToggleRow: (id: string) => void) => {
+    const visibleRows = rows.filter((row) => `${row.name} ${row.detail} ${row.extra} ${row.status}`.toLowerCase().includes(query.toLowerCase()));
+    return <>
+      <AdminFilters query={query} setQuery={setQuery} placeholder={placeholder} onOpenFilters={() => setModal("filters")} />
+      <AdminTable
+        rows={visibleRows}
+        onOpen={(id) => openDetail(type, id)}
+        onEdit={(id) => openEditor(editKind, id)}
+        action={(id) => onToggleRow(id)}
+        actionText={actionText}
+      />
+    </>;
   };
 
-  return <section className="workspace-main admin-main-workspace"><div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">FITBOOKING MANAGEMENT</p><h1>{heading}</h1><p>{description}</p></div><button className="button button-primary" onClick={() => setModal(actionKind)}><Plus size={15} /> {actionLabel}</button></div>
+  return <section className="workspace-main admin-main-workspace"><div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">FITBOOKING MANAGEMENT</p><h1>{heading}</h1><p>{description}</p></div><button className="button button-primary" onClick={() => { setEditTarget(null); setModal(actionKind); }}><Plus size={15} /> {actionLabel}</button></div>
     {notice && <div className="workspace-notice" role="status">{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
-    {active === "Overview" && <AdminOverview onNavigate={(section) => setNotice(`${section} management opened from the overview.`)} onOpen={openDetail} onAddTrainer={() => setModal("trainer")} />}
-    {active === "Bookings" && renderDirectory(adminBookings, "member", "Search member, trainer, or session", "Update", "booking")}
-    {active === "Members" && renderDirectory(adminMembers, "member", "Search name, email, or membership", "Pause", "member")}
-    {active === "Trainers" && renderDirectory(adminCoaches, "coach", "Search trainer, coach number, or specialty", "Change status", "trainer")}
-    {active === "Locations" && renderDirectory(adminLocations, "location", "Search location, district, or facility", "Toggle", "location")}
-    {active === "Courses" && renderDirectory(adminCourses, "course", "Search course, difficulty, or equipment", "Toggle", "course")}
-    {active === "Packages" && <AdminPackageList status={status} onOpen={(id) => openDetail("package", id)} onEdit={(id) => openEditor("package", id)} onToggle={(id, current) => updateStatus(id, current)} />}
-    {active === "KPI" && <section className="admin-kpi-stack"><div className="admin-kpi-toolbar"><div><span className="eyebrow">MONTHLY SNAPSHOT</span><b>{kpiMonth}</b><small>Values are local preview data until the KPI job is connected.</small></div><div><select className="workspace-select" value={kpiMonth} onChange={(event) => setKpiMonth(event.target.value)}><option>April 2026</option><option>March 2026</option><option>February 2026</option></select><button className="button button-outline" onClick={() => setModal("workflow")}><RefreshCw size={14} /> Recalculate</button></div></div><div className="workspace-stat-row admin-overview-stats"><AdminMiniStat icon={CheckCircle2} label="Achieved" value="31 / 48" note="coaches on target" /><AdminMiniStat icon={TrendingUp} label="Average hours" value="78.4" note="per active coach" /><AdminMiniStat icon={Star} label="Average rating" value="4.72" note="from completed reviews" /><AdminMiniStat icon={Activity} label="At risk" value="7" note="needs a follow-up" /></div><div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>KPI rules</h2><p>Source of truth for kpi_rule thresholds.</p></div><SlidersHorizontal size={18} /></div><div className="admin-kpi-rule-list">{rules.map((rule) => <div className="admin-kpi-rule-row" key={rule.level}><b>{rule.level}</b>{editingRule === rule.level ? <><input aria-label={`${rule.level} monthly hours`} type="number" value={rule.hours} onChange={(event) => setRules((value) => value.map((item) => item.level === rule.level ? { ...item, hours: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} rating`} type="number" step="0.1" value={rule.rating} onChange={(event) => setRules((value) => value.map((item) => item.level === rule.level ? { ...item, rating: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} retention`} type="number" value={rule.retention} onChange={(event) => setRules((value) => value.map((item) => item.level === rule.level ? { ...item, retention: Number(event.target.value) } : item))} /><button className="text-link" onClick={() => { setEditingRule(""); setNotice(`${rule.level} KPI rule saved in this preview.`); }}>Save</button></> : <><span>{rule.hours} hrs / month</span><span>{rule.rating.toFixed(1)} rating</span><span>{rule.retention}% retention</span><button className="icon-button" aria-label={`Edit ${rule.level} KPI rule`} onClick={() => setEditingRule(rule.level)}><Pencil size={15} /></button></>}</div>)}</div></section><section className="workspace-panel"><div className="section-title"><div><h2>Coach snapshot</h2><p>Monthly records from coach_kpi_record.</p></div><button className="text-link" onClick={() => setNotice("All KPI records opened in this preview.")}>View all <ArrowRight size={14} /></button></div>{adminKpiRecords.map((record) => <div className="admin-kpi-record" key={record.id}><button className="admin-kpi-record-main" onClick={() => openDetail("coach", record.id)}><span className="trainer-member-avatar">{record.coach.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span><span><b>{record.coach}</b><small>{record.level} · {record.hours} hrs · {record.rating.toFixed(1)} rating</small></span><Pill className={record.achieved ? "confirmed-pill" : "gold-pill"}>{record.achieved ? "Achieved" : "At risk"}</Pill><ChevronRight size={15} /></button><button className="icon-button" aria-label={`Edit KPI snapshot for ${record.coach}`} onClick={() => openEditor("kpi", record.id)}><Pencil size={15} /></button></div>)}</section></div></section>}
+    {active === "Overview" && <AdminOverview
+      membersCount={members.filter((m) => m.status === "ACTIVE").length}
+      coachesCount={coaches.filter((c) => c.status === "ACTIVE").length}
+      bookingsCount={bookings.length}
+      packagesCount={packages.filter((p) => p.status === "Available").length}
+      onNavigate={(section) => setNotice(`${section} management opened from the overview.`)}
+      onOpen={openDetail}
+      onAddTrainer={() => { setEditTarget(null); setModal("trainer"); }}
+    />}
+    {active === "Bookings" && renderDirectory(bookingRows, "booking", "Search member, trainer, or session", "Update status", "booking", handleToggleBooking)}
+    {active === "Members" && renderDirectory(memberRows, "member", "Search name, email, or membership", "Toggle status", "member", handleToggleMember)}
+    {active === "Trainers" && renderDirectory(coachRows, "coach", "Search trainer, coach number, or specialty", "Change status", "trainer", handleToggleCoach)}
+    {active === "Locations" && renderDirectory(locationRows, "location", "Search location, district, or facility", "Toggle", "location", handleToggleLocation)}
+    {active === "Courses" && renderDirectory(courseRows, "course", "Search course, difficulty, or equipment", "Toggle", "course", handleToggleCourse)}
+    {active === "Packages" && <AdminPackageList packages={packages} onOpen={(id) => openDetail("package", id)} onEdit={(id) => openEditor("package", id)} onToggle={handleTogglePackage} />}
+    {active === "KPI" && <section className="admin-kpi-stack"><div className="admin-kpi-toolbar"><div><span className="eyebrow">MONTHLY SNAPSHOT</span><b>{kpiMonth}</b><small>Values are preview data based on coach_kpi_record and kpi_rule.</small></div><div><select className="workspace-select" value={kpiMonth} onChange={(event) => setKpiMonth(event.target.value)}><option>April 2026</option><option>March 2026</option><option>February 2026</option></select><button className="button button-outline" onClick={recalculateKpiSnapshots}><RefreshCw size={14} /> Recalculate</button></div></div>
+      <div className="workspace-stat-row admin-overview-stats">
+        <AdminMiniStat icon={CheckCircle2} label="Achieved" value={`${kpiRecords.filter((r) => r.achieved).length} / ${kpiRecords.length}`} note="coaches on target" />
+        <AdminMiniStat icon={TrendingUp} label="Average hours" value={(kpiRecords.reduce((acc, r) => acc + r.hours, 0) / (kpiRecords.length || 1)).toFixed(1)} note="per active coach" />
+        <AdminMiniStat icon={Star} label="Average rating" value={(kpiRecords.reduce((acc, r) => acc + r.rating, 0) / (kpiRecords.length || 1)).toFixed(2)} note="from completed reviews" />
+        <AdminMiniStat icon={Activity} label="At risk" value={kpiRecords.filter((r) => !r.achieved).length.toString()} note="needs follow-up" />
+      </div>
+      <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>KPI rules</h2><p>Source of truth for kpi_rule thresholds.</p></div><SlidersHorizontal size={18} /></div><div className="admin-kpi-rule-list">{rules.map((rule) => <div className="admin-kpi-rule-row" key={rule.level}><b>{rule.level}</b>{editingRule === rule.level ? <><input aria-label={`${rule.level} monthly hours`} type="number" value={rule.hours} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, hours: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} rating`} type="number" step="0.1" value={rule.rating} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, rating: Number(event.target.value) } : item))} /><input aria-label={`${rule.level} retention`} type="number" value={rule.retention} onChange={(event) => setRules((val) => val.map((item) => item.level === rule.level ? { ...item, retention: Number(event.target.value) } : item))} /><button className="text-link" onClick={() => { setEditingRule(""); setNotice(`${rule.level} KPI rule saved.`); }}>Save</button></> : <><span>{rule.hours} hrs / mo</span><span>{rule.rating.toFixed(1)} rating</span><span>{rule.retention}% retention</span><button className="icon-button" aria-label={`Edit ${rule.level} KPI rule`} onClick={() => setEditingRule(rule.level)}><Pencil size={15} /></button></>}</div>)}</div></section>
+        <section className="workspace-panel"><div className="section-title"><div><h2>Coach snapshot</h2><p>Monthly records from coach_kpi_record.</p></div><button className="text-link" onClick={() => setNotice("All KPI records opened in this preview.")}>View all <ArrowRight size={14} /></button></div>{kpiRecords.map((record) => <div className="admin-kpi-record" key={record.id}><button className="admin-kpi-record-main" onClick={() => openDetail("coach", record.id)}><span className="trainer-member-avatar">{record.coach.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span><span><b>{record.coach}</b><small>{record.level} · {record.hours} hrs · {record.rating.toFixed(1)} rating</small></span><Pill className={record.achieved ? "confirmed-pill" : "gold-pill"}>{record.achieved ? "Achieved" : "At risk"}</Pill><ChevronRight size={15} /></button><button className="icon-button" aria-label={`Edit KPI snapshot for ${record.coach}`} onClick={() => openEditor("kpi", record.id)}><Pencil size={15} /></button></div>)}</section>
+      </div>
+    </section>}
     {active === "Reports" && <AdminReports onBuild={() => setModal("report")} />}
     {active === "Audit log" && <AdminAudit onFilter={() => setModal("auditFilters")} />}
-    {active === "Settings" && <AdminSettings status={status} onToggle={(id, value) => setStatus((current) => ({ ...current, [id]: value }))} />}
-    </div>{detail && <AdminDetailDrawer detail={detail} onClose={() => setDetail(null)} onEdit={openEditor} onNotice={setNotice} status={status} onToggle={(id, current) => updateStatus(id, current)} />}{modal && <AdminFormDrawer kind={modal} active={active} editTarget={editTarget} onClose={closeModal} onSave={(message) => { closeModal(); setNotice(message); }} />}
+    {active === "Settings" && <AdminSettings status={{}} onToggle={(id, value) => setNotice(`Setting ${id} set to ${value}.`)} />}
+    </div>
+    {detail && <AdminDetailDrawer
+      detail={detail}
+      bookings={bookings}
+      members={members}
+      coaches={coaches}
+      locations={locations}
+      courses={courses}
+      packages={packages}
+      onClose={() => setDetail(null)}
+      onEdit={openEditor}
+      onNotice={setNotice}
+      onToggleBooking={handleToggleBooking}
+      onToggleMember={handleToggleMember}
+      onToggleCoach={handleToggleCoach}
+      onToggleLocation={handleToggleLocation}
+      onToggleCourse={handleToggleCourse}
+      onTogglePackage={handleTogglePackage}
+    />}
+    {modal && <AdminFormDrawer
+      key={`${modal}-${editTarget?.id || "new"}`}
+      kind={modal}
+      active={active}
+      editTarget={editTarget}
+      bookings={bookings}
+      members={members}
+      coaches={coaches}
+      locations={locations}
+      courses={courses}
+      packages={packages}
+      kpiRecords={kpiRecords}
+      onSaveBooking={(item) => setBookings((prev) => prev.some((b) => b.id === item.id) ? prev.map((b) => b.id === item.id ? item : b) : [item, ...prev])}
+      onSaveMember={(item) => setMembers((prev) => prev.some((m) => m.id === item.id) ? prev.map((m) => m.id === item.id ? item : m) : [item, ...prev])}
+      onSaveCoach={(item) => setCoaches((prev) => prev.some((c) => c.id === item.id) ? prev.map((c) => c.id === item.id ? item : c) : [item, ...prev])}
+      onSaveLocation={(item) => setLocations((prev) => prev.some((l) => l.id === item.id) ? prev.map((l) => l.id === item.id ? item : l) : [item, ...prev])}
+      onSaveCourse={(item) => setCourses((prev) => prev.some((c) => c.id === item.id) ? prev.map((c) => c.id === item.id ? item : c) : [item, ...prev])}
+      onSavePackage={(item) => setPackages((prev) => prev.some((p) => p.id === item.id) ? prev.map((p) => p.id === item.id ? item : p) : [item, ...prev])}
+      onSaveKpiRecord={(item) => setKpiRecords((prev) => prev.map((k) => k.id === item.id ? item : k))}
+      onRecalculateKpi={recalculateKpiSnapshots}
+      onClose={closeModal}
+      onSave={(message) => { closeModal(); setNotice(message); }}
+    />}
   </section>;
 }
 
-function AdminOverview({ onNavigate, onOpen, onAddTrainer }: { onNavigate: (section: string) => void; onOpen: (type: AdminDetailType, id: string) => void; onAddTrainer: () => void }) {
-  const stats = [["Active members", "1,248", "+12 this month", UsersRound], ["Verified trainers", "48", "3 need review", Dumbbell], ["Bookings today", "36", "8 pending", CalendarDays], ["Package sales", "฿186.4K", "This month", Wallet]] as const;
-  return <><div className="workspace-stat-row admin-overview-stats">{stats.map(([label, value, note, Icon]) => <article className="workspace-stat" key={label}><span className="workspace-stat-icon"><Icon size={18} /></span><small>{label}</small><b>{value}</b><span>{note}</span></article>)}</div><div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Needs attention</h2><p>Workflow items ready for review</p></div><span className="pill">4 open</span></div><div className="admin-task-row"><span className="admin-task-icon"><Clock3 size={15} /></span><span><b>Coach verification</b><small>Ploy Rattanakorn · documents to review</small></span><button className="button button-outline" onClick={() => onOpen("coach", "coach-ploy")}>Review</button></div><div className="admin-task-row"><span className="admin-task-icon"><CalendarDays size={15} /></span><span><b>Booking request</b><small>Krit S. · Apr 20 at 10:30 AM</small></span><button className="button button-outline" onClick={() => onNavigate("Bookings")}>Confirm</button></div><div className="admin-task-row"><span className="admin-task-icon"><UsersRound size={15} /></span><span><b>Member profile</b><small>Complete account contact details</small></span><button className="button button-outline" onClick={() => onOpen("member", "member-krit")}>Open</button></div></section><section className="workspace-panel"><div className="section-title"><div><h2>Recent activity</h2><p>Across the FitBooking community</p></div><Activity size={18} /></div>{[["New booking", "Strength & Conditioning · Coach Tan", "2m"], ["Trainer joined", "Ploy R. · Verification pending", "18m"], ["Package selected", "13-session plan · Alex Morgan", "42m"]].map(([title, detail, time]) => <div className="admin-activity-row" key={title}><CheckCircle2 size={16} /><span><b>{title}</b><small>{detail}</small></span><time>{time}</time></div>)}</section></div><section className="workspace-panel workflow-panel"><div className="section-title"><div><h2>Workflow shortcuts</h2><p>Move directly to the work queue you need.</p></div><button className="button button-outline" onClick={onAddTrainer}><Plus size={14} /> Add trainer</button></div><div className="admin-shortcut-grid">{[["Members", UsersRound], ["Trainers", Dumbbell], ["Locations", Building2], ["Courses", BookOpen], ["KPI", TrendingUp]].map(([label, Icon]) => <button key={label as string} onClick={() => onNavigate(label as string)}><Icon size={19} /><b>{label as string}</b><small>Review records and update demo status</small><ChevronRight size={15} /></button>)}</div></section></>;
+function AdminOverview({
+  membersCount,
+  coachesCount,
+  bookingsCount,
+  packagesCount,
+  onNavigate,
+  onOpen,
+  onAddTrainer
+}: {
+  membersCount: number;
+  coachesCount: number;
+  bookingsCount: number;
+  packagesCount: number;
+  onNavigate: (section: string) => void;
+  onOpen: (type: AdminDetailType, id: string) => void;
+  onAddTrainer: () => void;
+}) {
+  const stats = [
+    ["Active members", membersCount.toString(), "Verified client accounts", UsersRound],
+    ["Verified trainers", coachesCount.toString(), "Active coaching roster", Dumbbell],
+    ["Total bookings", bookingsCount.toString(), "Sessions scheduled", CalendarDays],
+    ["Package plans", packagesCount.toString(), "Active catalogue options", Wallet]
+  ] as const;
+
+  return <>
+    <div className="workspace-stat-row admin-overview-stats">{stats.map(([label, value, note, Icon]) => <article className="workspace-stat" key={label}><span className="workspace-stat-icon"><Icon size={18} /></span><small>{label}</small><b>{value}</b><span>{note}</span></article>)}</div>
+    <div className="workspace-columns">
+      <section className="workspace-panel">
+        <div className="section-title"><div><h2>Needs attention</h2><p>Workflow items ready for review</p></div><span className="pill">4 open</span></div>
+        <div className="admin-task-row"><span className="admin-task-icon"><Clock3 size={15} /></span><span><b>Coach verification</b><small>Ploy Rattanakorn · documents to review</small></span><button className="button button-outline" onClick={() => onOpen("coach", "coach-ploy")}>Review</button></div>
+        <div className="admin-task-row"><span className="admin-task-icon"><CalendarDays size={15} /></span><span><b>Booking request</b><small>Krit S. · Apr 20 at 10:30 AM</small></span><button className="button button-outline" onClick={() => onNavigate("Bookings")}>Confirm</button></div>
+        <div className="admin-task-row"><span className="admin-task-icon"><UsersRound size={15} /></span><span><b>Member profile</b><small>Complete account contact details</small></span><button className="button button-outline" onClick={() => onOpen("member", "member-krit")}>Open</button></div>
+      </section>
+      <section className="workspace-panel">
+        <div className="section-title"><div><h2>Recent activity</h2><p>Across the FitBooking community</p></div><Activity size={18} /></div>
+        {[["New booking", "Strength & Conditioning · Coach Tan", "2m"], ["Trainer joined", "Ploy R. · Verification pending", "18m"], ["Package selected", "13-session plan · Alex Morgan", "42m"]].map(([title, detail, time]) => <div className="admin-activity-row" key={title}><CheckCircle2 size={16} /><span><b>{title}</b><small>{detail}</small></span><time>{time}</time></div>)}
+      </section>
+    </div>
+    <section className="workspace-panel workflow-panel">
+      <div className="section-title"><div><h2>Workflow shortcuts</h2><p>Move directly to the work queue you need.</p></div><button className="button button-outline" onClick={onAddTrainer}><Plus size={14} /> Add trainer</button></div>
+      <div className="admin-shortcut-grid">{[["Bookings", CalendarDays], ["Members", UsersRound], ["Trainers", Dumbbell], ["Locations", Building2], ["Courses", BookOpen], ["KPI", TrendingUp]].map(([label, Icon]) => <button key={label as string} onClick={() => onNavigate(label as string)}><Icon size={19} /><b>{label as string}</b><small>Review records and update details</small><ChevronRight size={15} /></button>)}</div>
+    </section>
+  </>;
 }
 
 function AdminMiniStat({ icon: Icon, label, value, note }: { icon: LucideIcon; label: string; value: string; note: string }) {
   return <article className="workspace-stat"><span className="workspace-stat-icon"><Icon size={18} /></span><small>{label}</small><b>{value}</b><span>{note}</span></article>;
 }
 
-function AdminPackageList({ status, onOpen, onEdit, onToggle }: { status: Record<string, AdminStatus>; onOpen: (id: string) => void; onEdit: (id: string) => void; onToggle: (id: string, current: AdminStatus) => void }) {
-  return <section className="workspace-panel admin-package-list"><div className="section-title"><div><h2>Member packages</h2><p>Configure the 5+1, 10+3, and 20+7 catalogue plans.</p></div><span className="pill"><Wallet size={13} /> 180-day validity</span></div>{adminPackages.map((item) => { const current = status[item.id] || item.status; return <div className="admin-catalog-row" key={item.id}><span className="admin-task-icon"><Wallet size={16} /></span><span><b>{item.name}</b><small>{item.detail}</small><small>{item.extra}</small></span><Pill className={current === "Available" ? "confirmed-pill" : "gold-pill"}>{current}</Pill><button className="button button-outline" onClick={() => onOpen(item.id)}>Details</button><button className="button button-outline" onClick={() => onEdit(item.id)}><Pencil size={13} /> Edit</button><button className="icon-button" aria-label={`Toggle ${item.name}`} onClick={() => onToggle(item.id, current)}><MoreHorizontal size={17} /></button></div>; })}</section>;
+function AdminPackageList({
+  packages,
+  onOpen,
+  onEdit,
+  onToggle
+}: {
+  packages: AdminPackageItem[];
+  onOpen: (id: string) => void;
+  onEdit: (id: string) => void;
+  onToggle: (id: string) => void;
+}) {
+  return <section className="workspace-panel admin-package-list">
+    <div className="section-title"><div><h2>Member packages</h2><p>Configure the 5+1, 10+3, and 20+7 catalogue plans from member_package rules.</p></div><span className="pill"><Wallet size={13} /> 180-day validity</span></div>
+    {packages.map((item) => (
+      <div className="admin-catalog-row" key={item.id}>
+        <span className="admin-task-icon"><Wallet size={16} /></span>
+        <span>
+          <b>{item.name}</b>
+          <small>{item.total_sessions} sessions ({item.paid_sessions} paid + {item.bonus_sessions} bonus) · ฿{item.price.toLocaleString()}</small>
+          <small>{item.validity_days} days validity · ฿{Math.round(item.price / (item.paid_sessions || 1))} per paid session</small>
+        </span>
+        <Pill className={item.status === "Available" ? "confirmed-pill" : "gold-pill"}>{item.status}</Pill>
+        <button className="button button-outline" onClick={() => onOpen(item.id)}>Details</button>
+        <button className="button button-outline" onClick={() => onEdit(item.id)}><Pencil size={13} /> Edit</button>
+        <button className="icon-button" aria-label={`Toggle ${item.name}`} onClick={() => onToggle(item.id)}><MoreHorizontal size={17} /></button>
+      </div>
+    ))}
+  </section>;
 }
 
 function AdminReports({ onBuild }: { onBuild: () => void }) {
@@ -533,13 +749,185 @@ function AdminSettings({ status, onToggle }: { status: Record<string, AdminStatu
   return <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Platform settings</h2><p>Controls shown here are local demo preferences.</p></div><ShieldCheck size={18} /></div>{settings.map(([label, detail]) => { const value = status[label] || "Active"; return <div className="notification-setting" key={label}><div><b>{label}</b><p>{detail}</p></div><button className={`toggle-switch ${value === "Active" ? "on" : ""}`} aria-label={`Toggle ${label}`} aria-pressed={value === "Active"} onClick={() => onToggle(label, value === "Active" ? "Paused" : "Active")}><i /></button></div>; })}</section><section className="workspace-panel admin-policy-panel"><div className="section-title"><div><h2>Data handling notes</h2><p>Aligned with the database documentation.</p></div><ShieldCheck size={18} /></div><div className="admin-policy-row"><Check size={15} /><span>Business records use status-based soft deletion.</span></div><div className="admin-policy-row"><Check size={15} /><span>Dynamic coach schedule table names stay backend-owned.</span></div><div className="admin-policy-row"><Check size={15} /><span>Financial values display in Thai baht with two decimals in the API.</span></div></section></div>;
 }
 
-function AdminDetailDrawer({ detail, onClose, onEdit, onNotice, status, onToggle }: { detail: { type: AdminDetailType; id: string }; onClose: () => void; onEdit: (kind: AdminModalKind, id: string) => void; onNotice: (message: string) => void; status: Record<string, AdminStatus>; onToggle: (id: string, current: AdminStatus) => void }) {
-  const item = detail.type === "member" ? adminMembers.find((row) => row.id === detail.id) : detail.type === "coach" ? adminCoaches.find((row) => row.id === detail.id) : detail.type === "location" ? adminLocations.find((row) => row.id === detail.id) : detail.type === "course" ? adminCourses.find((row) => row.id === detail.id) : adminPackages.find((row) => row.id === detail.id);
-  if (!item) return null;
-  const current = status[item.id] || item.status;
-  const labels: Record<AdminDetailType, string> = { member: "Member detail", coach: "Coach detail", package: "Package detail", location: "Location detail", course: "Course detail" };
+function AdminDetailDrawer({
+  detail,
+  bookings,
+  members,
+  coaches,
+  locations,
+  courses,
+  packages,
+  onClose,
+  onEdit,
+  onNotice,
+  onToggleBooking,
+  onToggleMember,
+  onToggleCoach,
+  onToggleLocation,
+  onToggleCourse,
+  onTogglePackage
+}: {
+  detail: { type: AdminDetailType; id: string };
+  bookings: AdminBookingItem[];
+  members: AdminMemberItem[];
+  coaches: AdminCoachItem[];
+  locations: AdminLocationItem[];
+  courses: AdminCourseItem[];
+  packages: AdminPackageItem[];
+  onClose: () => void;
+  onEdit: (kind: AdminModalKind, id: string) => void;
+  onNotice: (message: string) => void;
+  onToggleBooking: (id: string) => void;
+  onToggleMember: (id: string) => void;
+  onToggleCoach: (id: string) => void;
+  onToggleLocation: (id: string) => void;
+  onToggleCourse: (id: string) => void;
+  onTogglePackage: (id: string) => void;
+}) {
+  const b = bookings.find((item) => item.id === detail.id);
+  const m = members.find((item) => item.id === detail.id);
+  const c = coaches.find((item) => item.id === detail.id);
+  const l = locations.find((item) => item.id === detail.id);
+  const cr = courses.find((item) => item.id === detail.id);
+  const p = packages.find((item) => item.id === detail.id);
+
+  const title = detail.type === "booking" ? (b ? `${b.member_name} · ${b.coach_name}` : "Booking detail")
+    : detail.type === "member" ? (m ? m.display_name : "Member detail")
+    : detail.type === "coach" ? (c ? c.display_name : "Coach detail")
+    : detail.type === "location" ? (l ? l.gym_name : "Location detail")
+    : detail.type === "course" ? (cr ? cr.course_name : "Course detail")
+    : (p ? p.name : "Package detail");
+
+  const subtitle = detail.type === "booking" ? (b ? `Booking #${b.booking_id} · ${b.course_name}` : "")
+    : detail.type === "member" ? (m ? `${m.email} · ${m.phone}` : "")
+    : detail.type === "coach" ? (c ? `Coach no. ${c.coach_no} · ${c.coach_level}` : "")
+    : detail.type === "location" ? (l ? `${l.district} · ${l.address}` : "")
+    : detail.type === "course" ? (cr ? `${cr.difficulty} · ${cr.default_duration} minutes` : "")
+    : (p ? `${p.total_sessions} sessions · ฿${p.price.toLocaleString()}` : "");
+
+  const statusLabel = detail.type === "booking" ? (b?.status || "CONFIRMED")
+    : detail.type === "member" ? (m?.status || "ACTIVE")
+    : detail.type === "coach" ? (c?.status || "ACTIVE")
+    : detail.type === "location" ? (l?.is_active === 1 ? "Active" : "Paused")
+    : detail.type === "course" ? (cr?.is_active === 1 ? "Available" : "Draft")
+    : (p?.status || "Available");
+
   const editKind: AdminModalKind = detail.type === "coach" ? "trainer" : detail.type;
-  return <div className="admin-drawer-backdrop" role="presentation" onClick={onClose}><aside className="admin-detail-drawer" role="dialog" aria-modal="true" aria-label={labels[detail.type]} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{labels[detail.type]}</span><h2>{item.name}</h2><p>{item.detail}</p></div><div className="admin-drawer-header-actions"><button className="button button-outline" onClick={() => onEdit(editKind, detail.id)}><Pencil size={13} /> Edit</button><button className="icon-button" aria-label="Close detail" onClick={onClose}><X size={19} /></button></div></header><div className="admin-detail-status"><Pill className={current === "Active" || current === "Available" || current === "Completed" ? "confirmed-pill" : "gold-pill"}>{current}</Pill><span>Local preview · changes are not saved to the backend.</span></div>{detail.type === "member" && <><AdminDetailSection title="Account"><AdminDetailLine label="Email" value={item.detail} /><AdminDetailLine label="Membership" value={item.extra.split(" · ")[0]} /><AdminDetailLine label="Spend / balance" value="฿22,150 total spend · 7 package sessions remaining" /><AdminDetailLine label="Profile" value="Fitness profile available · last updated today" /></AdminDetailSection><AdminDetailSection title="Recent activity"><AdminDetailLine label="Last booking" value="Strength & Conditioning · Apr 09, 09:10" /><AdminDetailLine label="Next booking" value="Strength & Conditioning · Apr 22, 08:00" /></AdminDetailSection></>}{detail.type === "coach" && <><AdminDetailSection title="Coach profile"><AdminDetailLine label="Identity" value={item.detail} /><AdminDetailLine label="Level / experience" value={item.extra} /><AdminDetailLine label="Service mode" value="GYM + HOME · 10-minute break interval" /><AdminDetailLine label="Schedule registry" value="Generated through backend schedule service · 60 days ahead" /></AdminDetailSection><AdminDetailSection title="KPI readiness">  <AdminDetailLine label="April snapshot" value={detail.id === "coach-tan" ? "92.5 hrs · 4.9 rating · 68% retention · Achieved" : detail.id === "coach-jeff" ? "108 hrs · 4.9 rating · 72% retention · Achieved" : detail.id === "coach-may" ? "58.5 hrs · 4.8 rating · 45% retention · At risk" : "76 hrs · 4.3 rating · 41% retention · At risk"} /><AdminDetailLine label="Courses" value="Strength & Conditioning · HIIT · Mobility" /></AdminDetailSection></>}{detail.type === "location" && <><AdminDetailSection title="Location profile"><AdminDetailLine label="Hours" value={item.detail.split(" · ")[1] || "06:00–22:00"} /><AdminDetailLine label="Facilities" value={item.extra.split(" · ")[1] || "Training floor and changing rooms"} /><AdminDetailLine label="Service relationship" value="Coach assignments are managed through coach_service." /><AdminDetailLine label="Bookings this month" value="126 sessions · 88% utilisation" /></AdminDetailSection><AdminDetailSection title="Operational action"><button className="button button-outline drawer-action" onClick={() => { onToggle(item.id, current); onNotice(`${item.name} status changed in this preview.`); }}>Toggle availability</button></AdminDetailSection></>}{detail.type === "course" && <><AdminDetailSection title="Course catalogue"><AdminDetailLine label="Difficulty / duration" value={item.detail.replace(" · ", " · ")} /><AdminDetailLine label="Coach assignments" value={item.extra.split(" · ")[0]} /><AdminDetailLine label="Equipment" value={item.extra.split(" · ")[1] || "Mats, bands, free weights"} /><AdminDetailLine label="Booking rule" value="Coach-specific pricing comes from coach_course.price_per_session." /></AdminDetailSection><AdminDetailSection title="Catalogue action"><button className="button button-outline drawer-action" onClick={() => { onToggle(item.id, current); onNotice(`${item.name} catalogue status changed in this preview.`); }}>Toggle catalogue status</button></AdminDetailSection></>}{detail.type === "package" && <><AdminDetailSection title="Package terms"><AdminDetailLine label="Sessions" value={item.detail} /><AdminDetailLine label="Validity / price" value={item.extra} /><AdminDetailLine label="Database status" value="ACTIVE, EXHAUSTED, EXPIRED, or CANCELLED" /><AdminDetailLine label="Purchase flow" value="Order is created first, then payment updates member total spend and membership level." /></AdminDetailSection><AdminDetailSection title="Package action"><button className="button button-outline drawer-action" onClick={() => { onToggle(item.id, current); onNotice(`${item.name} status changed in this preview.`); }}>Toggle package availability</button></AdminDetailSection></>}</aside></div>;
+
+  return <div className="admin-drawer-backdrop" role="presentation" onClick={onClose}><aside className="admin-detail-drawer" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{detail.type.toUpperCase()} DETAIL</span><h2>{title}</h2><p>{subtitle}</p></div><div className="admin-drawer-header-actions"><button className="button button-outline" onClick={() => onEdit(editKind, detail.id)}><Pencil size={13} /> Edit</button><button className="icon-button" aria-label="Close detail" onClick={onClose}><X size={19} /></button></div></header><div className="admin-detail-status"><Pill className={statusLabel === "Active" || statusLabel === "Available" || statusLabel === "CONFIRMED" || statusLabel === "COMPLETED" ? "confirmed-pill" : "gold-pill"}>{statusLabel}</Pill><span>Preview record · editable by administrators.</span></div>
+    {detail.type === "booking" && b && <>
+      <AdminDetailSection title="Session information">
+        <AdminDetailLine label="Booking ID" value={`#${b.booking_id}`} />
+        <AdminDetailLine label="Member" value={b.member_name} />
+        <AdminDetailLine label="Coach" value={b.coach_name} />
+        <AdminDetailLine label="Course" value={b.course_name} />
+        <AdminDetailLine label="Date & Time" value={`${b.booking_date} · ${b.start_time} - ${b.end_time} (${b.duration_minutes} min)`} />
+        <AdminDetailLine label="Break buffer" value={`${b.break_minutes} minutes`} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Location & Payment">
+        <AdminDetailLine label="Service mode" value={b.service_mode} />
+        <AdminDetailLine label="Location" value={b.service_mode === "GYM" ? (b.gym_name || "Gym facility") : `Home: ${b.service_address || ""} (${b.service_district || ""})`} />
+        <AdminDetailLine label="Price" value={`฿${b.price.toLocaleString()}`} />
+        <AdminDetailLine label="Package credit" value={b.package_name || "None / Direct booking"} />
+        {b.status === "CANCELLED" && <>
+          <AdminDetailLine label="Cancelled by" value={b.cancelled_by || "ADMIN"} />
+          <AdminDetailLine label="Cancel reason" value={b.cancel_reason || "None specified"} />
+        </>}
+      </AdminDetailSection>
+      <AdminDetailSection title="Quick actions">
+        <button className="button button-outline drawer-action" onClick={() => { onToggleBooking(b.id); onNotice(`Booking #${b.booking_id} status updated.`); }}>
+          {b.status === "CONFIRMED" ? "Mark session completed" : "Confirm booking"}
+        </button>
+      </AdminDetailSection>
+    </>}
+
+    {detail.type === "member" && m && <>
+      <AdminDetailSection title="Account details">
+        <AdminDetailLine label="Display name" value={m.display_name} />
+        <AdminDetailLine label="Username" value={m.username} />
+        <AdminDetailLine label="Email" value={m.email} />
+        <AdminDetailLine label="Phone" value={m.phone} />
+        <AdminDetailLine label="Membership" value={`${m.level_code} · ฿${m.total_spend.toLocaleString()} total spend`} />
+        <AdminDetailLine label="Package balance" value={`${m.remaining_sessions} sessions left`} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Fitness Profile">
+        <AdminDetailLine label="Gender & Age" value={`${m.gender || "Not specified"} · Birthdate: ${m.birth_date || "—"}`} />
+        <AdminDetailLine label="Body metrics" value={`Height: ${m.height_cm ? `${m.height_cm} cm` : "—"} · Weight: ${m.weight_kg ? `${m.weight_kg} kg` : "—"}`} />
+        <AdminDetailLine label="Fitness goal" value={m.fitness_goal || "None stated"} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Account controls">
+        <button className="button button-outline drawer-action" onClick={() => { onToggleMember(m.id); onNotice(`Member ${m.display_name} status toggled.`); }}>
+          {m.status === "ACTIVE" ? "Disable account" : "Activate account"}
+        </button>
+      </AdminDetailSection>
+    </>}
+
+    {detail.type === "coach" && c && <>
+      <AdminDetailSection title="Coach Profile">
+        <AdminDetailLine label="Coach number" value={c.coach_no} />
+        <AdminDetailLine label="Coach level" value={c.coach_level} />
+        <AdminDetailLine label="Experience" value={`${c.years_experience} years · Rating: ⭐ ${c.rating.toFixed(1)}`} />
+        <AdminDetailLine label="Service mode" value={`${c.service_mode} · ${c.break_interval}-min break buffer`} />
+        <AdminDetailLine label="Locations" value={c.assigned_locations} />
+        <AdminDetailLine label="Courses taught" value={c.courses_taught} />
+        <AdminDetailLine label="Certifications" value={c.certifications || "None specified"} />
+        <AdminDetailLine label="Bio" value={c.bio || "No biography"} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Roster actions">
+        <button className="button button-outline drawer-action" onClick={() => { onToggleCoach(c.id); onNotice(`Coach ${c.display_name} status updated.`); }}>
+          {c.status === "ACTIVE" ? "Set to On leave" : "Set to Active"}
+        </button>
+      </AdminDetailSection>
+    </>}
+
+    {detail.type === "location" && l && <>
+      <AdminDetailSection title="Facility details">
+        <AdminDetailLine label="District" value={l.district} />
+        <AdminDetailLine label="Address" value={l.address} />
+        <AdminDetailLine label="Hours" value={`${l.opening_time} – ${l.closing_time}`} />
+        <AdminDetailLine label="Phone" value={l.phone} />
+        <AdminDetailLine label="Facilities" value={l.facilities} />
+        <AdminDetailLine label="Coordinates" value={`${l.latitude}, ${l.longitude}`} />
+        <AdminDetailLine label="Features" value={l.features} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Facility actions">
+        <button className="button button-outline drawer-action" onClick={() => { onToggleLocation(l.id); onNotice(`Location ${l.gym_name} status toggled.`); }}>
+          {l.is_active === 1 ? "Pause location" : "Activate location"}
+        </button>
+      </AdminDetailSection>
+    </>}
+
+    {detail.type === "course" && cr && <>
+      <AdminDetailSection title="Course catalogue">
+        <AdminDetailLine label="Difficulty" value={cr.difficulty} />
+        <AdminDetailLine label="Default duration" value={`${cr.default_duration} minutes`} />
+        <AdminDetailLine label="Equipment" value={cr.equipment} />
+        <AdminDetailLine label="Assigned coaches" value={cr.assigned_coaches} />
+        <AdminDetailLine label="Description" value={cr.description} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Catalogue actions">
+        <button className="button button-outline drawer-action" onClick={() => { onToggleCourse(cr.id); onNotice(`Course ${cr.course_name} catalogue status changed.`); }}>
+          {cr.is_active === 1 ? "Deactivate course" : "Publish course"}
+        </button>
+      </AdminDetailSection>
+    </>}
+
+    {detail.type === "package" && p && <>
+      <AdminDetailSection title="Package Plan">
+        <AdminDetailLine label="Package type" value={p.package_type} />
+        <AdminDetailLine label="Sessions" value={`${p.total_sessions} total (${p.paid_sessions} paid + ${p.bonus_sessions} bonus)`} />
+        <AdminDetailLine label="Price" value={`฿${p.price.toLocaleString()}`} />
+        <AdminDetailLine label="Validity" value={`${p.validity_days} days`} />
+        <AdminDetailLine label="Description" value={p.description} />
+        <AdminDetailLine label="Terms" value={p.terms} />
+      </AdminDetailSection>
+      <AdminDetailSection title="Package actions">
+        <button className="button button-outline drawer-action" onClick={() => { onTogglePackage(p.id); onNotice(`Package ${p.name} status updated.`); }}>
+          {p.status === "Available" ? "Pause package" : "Make available"}
+        </button>
+      </AdminDetailSection>
+    </>}
+  </aside></div>;
 }
 
 function AdminDetailSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -554,38 +942,560 @@ function AdminFilters({ query, setQuery, placeholder, onOpenFilters }: { query: 
   return <div className="admin-filter-row"><label className="search-bar"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} /></label><select className="workspace-select"><option>All statuses</option><option>Active</option><option>Pending</option><option>Paused</option><option>Needs review</option></select><button className="button button-outline" onClick={onOpenFilters}><SlidersHorizontal size={14} /> Filters</button></div>;
 }
 
-function AdminTable({ rows, onOpen, onEdit, action, actionText, status }: { rows: AdminRow[]; onOpen: (id: string) => void; onEdit: (id: string) => void; action: (id: string, current: AdminStatus) => void; actionText: string; status: Record<string, AdminStatus> }) {
-  return <div className="workspace-panel admin-table-wrap"><table className="admin-table"><thead><tr><th>Record</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map((row) => { const current = status[row.id] || row.status; return <tr key={row.id}><td><button className="admin-table-record" onClick={() => onOpen(row.id)}><b>{row.name}</b><span>Open details</span></button></td><td>{row.detail}<small>{row.extra}</small></td><td><span className={`booking-status ${current.toLowerCase().replaceAll(" ", "-")}`}>{current}</span></td><td><button className="button button-outline" onClick={() => onEdit(row.id)}><Pencil size={13} /> Edit</button><button className="button button-outline" onClick={() => action(row.id, current)}>{current === "Confirmed" ? "Complete" : actionText}</button><button className="icon-button" aria-label={`More actions for ${row.name}`} onClick={() => onOpen(row.id)}><MoreHorizontal size={16} /></button></td></tr>; })}</tbody></table>{!rows.length && <div className="empty-state"><Search size={23} /><h3>No records found</h3><p>Try clearing your search and checking again.</p></div>}<p className="auth-notice">Any status changes are temporary browser-only previews.</p></div>;
+function AdminTable({
+  rows,
+  onOpen,
+  onEdit,
+  action,
+  actionText
+}: {
+  rows: AdminRow[];
+  onOpen: (id: string) => void;
+  onEdit: (id: string) => void;
+  action: (id: string) => void;
+  actionText: string;
+}) {
+  return <div className="workspace-panel admin-table-wrap">
+    <table className="admin-table">
+      <thead><tr><th>Record</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id}>
+            <td><button className="admin-table-record" onClick={() => onOpen(row.id)}><b>{row.name}</b><span>Open details</span></button></td>
+            <td>{row.detail}<small>{row.extra}</small></td>
+            <td><span className={`booking-status ${row.status.toLowerCase().replaceAll(" ", "-")}`}>{row.status}</span></td>
+            <td>
+              <button className="button button-outline" onClick={() => onEdit(row.id)}><Pencil size={13} /> Edit</button>
+              <button className="button button-outline" onClick={() => action(row.id)}>{row.status === "Confirmed" ? "Complete" : actionText}</button>
+              <button className="icon-button" aria-label={`More actions for ${row.name}`} onClick={() => onOpen(row.id)}><MoreHorizontal size={16} /></button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    {!rows.length && <div className="empty-state"><Search size={23} /><h3>No records found</h3><p>Try clearing your search and checking again.</p></div>}
+    <p className="auth-notice">Modifications are saved to active preview state in this session.</p>
+  </div>;
 }
 
-function AdminFormDrawer({ kind, active, onClose, onSave }: { kind: AdminModalKind; active: string; onClose: () => void; onSave: (message: string) => void }) {
+function AdminFormDrawer({
+  kind,
+  active,
+  editTarget,
+  bookings,
+  members,
+  coaches,
+  locations,
+  courses,
+  packages,
+  kpiRecords,
+  onSaveBooking,
+  onSaveMember,
+  onSaveCoach,
+  onSaveLocation,
+  onSaveCourse,
+  onSavePackage,
+  onSaveKpiRecord,
+  onRecalculateKpi,
+  onClose,
+  onSave
+}: {
+  kind: AdminModalKind;
+  active: string;
+  editTarget: { kind: AdminModalKind; id: string } | null;
+  bookings: AdminBookingItem[];
+  members: AdminMemberItem[];
+  coaches: AdminCoachItem[];
+  locations: AdminLocationItem[];
+  courses: AdminCourseItem[];
+  packages: AdminPackageItem[];
+  kpiRecords: AdminKpiRecordItem[];
+  onSaveBooking: (item: AdminBookingItem) => void;
+  onSaveMember: (item: AdminMemberItem) => void;
+  onSaveCoach: (item: AdminCoachItem) => void;
+  onSaveLocation: (item: AdminLocationItem) => void;
+  onSaveCourse: (item: AdminCourseItem) => void;
+  onSavePackage: (item: AdminPackageItem) => void;
+  onSaveKpiRecord: (item: AdminKpiRecordItem) => void;
+  onRecalculateKpi?: () => void;
+  onClose: () => void;
+  onSave: (message: string) => void;
+}) {
+  const isEdit = Boolean(editTarget && editTarget.id);
+
+  const targetItem = isEdit ? (
+    kind === "booking" ? bookings.find((b) => b.id === editTarget!.id) :
+    kind === "member" ? members.find((m) => m.id === editTarget!.id) :
+    kind === "trainer" ? coaches.find((c) => c.id === editTarget!.id) :
+    kind === "location" ? locations.find((l) => l.id === editTarget!.id) :
+    kind === "course" ? courses.find((c) => c.id === editTarget!.id) :
+    kind === "package" ? packages.find((p) => p.id === editTarget!.id) :
+    kind === "kpi" ? kpiRecords.find((k) => k.id === editTarget!.id) :
+    null
+  ) : null;
+
   const metadata: Record<AdminModalKind, { eyebrow: string; title: string; description: string }> = {
-    trainer: { eyebrow: "COACH PROFILE", title: "Add trainer", description: "Create the profile, service coverage, courses, and recurring availability that the admin will review." },
-    member: { eyebrow: "MEMBER ACCOUNT", title: "Add member", description: "Preview the member account and fitness profile information collected by FitBooking." },
-    location: { eyebrow: "GYM / LOCATION", title: "Add location", description: "Set the place details used by gym bookings and coach service assignments." },
-    course: { eyebrow: "COURSE CATALOGUE", title: "Add course", description: "Describe the training course before assigning coaches and coach-specific prices." },
-    package: { eyebrow: "MEMBER PACKAGE", title: "Add package", description: "Show the package terms, price, validity, and session balance rules." },
-    booking: { eyebrow: "BOOKING WORKFLOW", title: "Create booking", description: "Preview the booking information an admin sees when creating or assisting with a reservation." },
-    workflow: { eyebrow: "ADMIN WORKFLOW", title: active === "KPI" ? "Recalculate KPI snapshot" : "New workflow", description: "Define who owns the work, when it starts, and which records it touches." },
+    trainer: {
+      eyebrow: isEdit ? "EDIT COACH" : "COACH PROFILE",
+      title: isEdit ? `Edit coach: ${(targetItem as AdminCoachItem)?.display_name || ""}` : "Add trainer",
+      description: isEdit ? "Update trainer credentials, level, status, service locations, and break intervals." : "Create the profile, service coverage, courses, and recurring availability that the admin will review."
+    },
+    member: {
+      eyebrow: isEdit ? "EDIT MEMBER" : "MEMBER ACCOUNT",
+      title: isEdit ? `Edit member: ${(targetItem as AdminMemberItem)?.display_name || ""}` : "Add member",
+      description: isEdit ? "Update member profile, membership tier, contact details, or fitness profile metrics." : "Preview the member account and fitness profile information collected by FitBooking."
+    },
+    location: {
+      eyebrow: isEdit ? "EDIT LOCATION" : "GYM / LOCATION",
+      title: isEdit ? `Edit location: ${(targetItem as AdminLocationItem)?.gym_name || ""}` : "Add location",
+      description: isEdit ? "Update location name, hours, facilities, coordinates, and operating status." : "Set the place details used by gym bookings and coach service assignments."
+    },
+    course: {
+      eyebrow: isEdit ? "EDIT COURSE" : "COURSE CATALOGUE",
+      title: isEdit ? `Edit course: ${(targetItem as AdminCourseItem)?.course_name || ""}` : "Add course",
+      description: isEdit ? "Update course name, duration, difficulty, equipment, and catalogue visibility." : "Describe the training course before assigning coaches and coach-specific prices."
+    },
+    package: {
+      eyebrow: isEdit ? "EDIT PACKAGE" : "MEMBER PACKAGE",
+      title: isEdit ? `Edit package: ${(targetItem as AdminPackageItem)?.name || ""}` : "Add package",
+      description: isEdit ? "Update package sessions, pricing, validity period, and terms." : "Show the package terms, price, validity, and session balance rules."
+    },
+    booking: {
+      eyebrow: isEdit ? "EDIT BOOKING" : "BOOKING WORKFLOW",
+      title: isEdit ? `Edit booking #${(targetItem as AdminBookingItem)?.booking_id || ""}` : "Create booking",
+      description: isEdit ? "Update booking schedule, location, price, and booking status (Confirmed, Completed, Cancelled)." : "Preview the booking information an admin sees when creating or assisting with a reservation."
+    },
+    kpi: {
+      eyebrow: "COACH KPI SNAPSHOT",
+      title: isEdit ? `Edit KPI: ${(targetItem as AdminKpiRecordItem)?.coach || ""}` : "Update KPI",
+      description: "Adjust or override monthly coached hours, session count, client ratings, or target attainment."
+    },
+    workflow: {
+      eyebrow: "ADMIN WORKFLOW",
+      title: active === "KPI" ? "Recalculate KPI snapshot" : "New workflow",
+      description: active === "KPI" ? "Recalculate monthly achievement status against current kpi_rule requirements." : "Define who owns the work, when it starts, and which records it touches."
+    },
     filters: { eyebrow: "LIST FILTERS", title: "Filter records", description: "Choose the dimensions shown in this management list." },
     auditFilters: { eyebrow: "AUDIT LOG", title: "Filter audit events", description: "Narrow the audit trail by actor, action, entity, or time range." },
     report: { eyebrow: "REPORT BUILDER", title: "Build report", description: "Choose the report range and the operational measures to include." }
   };
+
   const info = metadata[kind];
-  const closeAfterSave = (event: React.FormEvent<HTMLFormElement>) => {
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(`${info.title} preview saved locally. No backend request was made.`);
+    const fd = new FormData(event.currentTarget);
+
+    if (kind === "booking") {
+      const existing = targetItem as AdminBookingItem | null;
+      const dur = Number(fd.get("duration_minutes")) || 60;
+      const brk = Number(String(fd.get("break_minutes")).replace(/\D/g, "")) as (10 | 20 | 30) || 10;
+      const startTime = String(fd.get("start_time") || "08:00");
+      let endTime = String(fd.get("end_time") || "");
+      if (!endTime && startTime) {
+        const [sh, sm] = startTime.split(":").map(Number);
+        const totalMinutes = (sh || 0) * 60 + (sm || 0) + dur;
+        const eh = Math.floor(totalMinutes / 60) % 24;
+        const em = totalMinutes % 60;
+        endTime = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+      }
+
+      const item: AdminBookingItem = {
+        id: existing ? existing.id : `booking-${Date.now().toString().slice(-5)}`,
+        booking_id: existing ? existing.booking_id : Math.floor(24000 + Math.random() * 1000),
+        member_name: String(fd.get("member_name") || existing?.member_name || "Alex Morgan"),
+        coach_name: String(fd.get("coach_name") || existing?.coach_name || "Tan Chaiyaporn"),
+        course_name: String(fd.get("course_name") || existing?.course_name || "Strength & Conditioning"),
+        service_mode: (fd.get("service_mode") as "GYM" | "HOME") || "GYM",
+        gym_name: fd.get("service_mode") === "GYM" ? String(fd.get("gym_name") || "Nimman Fitness Club") : null,
+        service_district: fd.get("service_mode") === "HOME" ? ((fd.get("service_district") as District) || "NIMMAN") : null,
+        service_address: fd.get("service_mode") === "HOME" ? String(fd.get("service_address") || "") : null,
+        booking_date: String(fd.get("booking_date") || "2026-04-22"),
+        start_time: startTime,
+        end_time: endTime || "09:00",
+        duration_minutes: dur,
+        break_minutes: brk,
+        price: Number(fd.get("price")) || 800,
+        status: (fd.get("status") as BookingStatus) || "CONFIRMED",
+        cancelled_by: fd.get("status") === "CANCELLED" ? ((fd.get("cancelled_by") as CancelledBy) || "ADMIN") : null,
+        cancel_reason: fd.get("status") === "CANCELLED" ? String(fd.get("cancel_reason") || "Cancelled by admin") : null,
+        package_name: String(fd.get("package_name") || "") || null
+      };
+      onSaveBooking(item);
+      onSave(existing ? `Booking #${item.booking_id} updated successfully.` : `Booking #${item.booking_id} created successfully.`);
+      return;
+    }
+
+    if (kind === "member") {
+      const existing = targetItem as AdminMemberItem | null;
+      const item: AdminMemberItem = {
+        id: existing ? existing.id : `member-${Date.now().toString().slice(-4)}`,
+        user_id: existing ? existing.user_id : Math.floor(100 + Math.random() * 900),
+        member_id: existing ? existing.member_id : Math.floor(100 + Math.random() * 900),
+        display_name: String(fd.get("display_name") || existing?.display_name || "New Member"),
+        username: String(fd.get("username") || existing?.username || "new.member"),
+        email: String(fd.get("email") || existing?.email || "member@example.com"),
+        phone: String(fd.get("phone") || existing?.phone || "+66 80 000 0000"),
+        status: (fd.get("status") as "ACTIVE" | "DISABLED") || "ACTIVE",
+        level_code: (fd.get("level_code") as "BRONZE" | "SILVER" | "GOLD") || "BRONZE",
+        total_spend: Number(fd.get("total_spend")) || 0,
+        remaining_sessions: Number(fd.get("remaining_sessions")) || 0,
+        gender: (fd.get("gender") as "MALE" | "FEMALE" | "OTHER") || null,
+        birth_date: String(fd.get("birth_date") || "") || null,
+        height_cm: Number(fd.get("height_cm")) || null,
+        weight_kg: Number(fd.get("weight_kg")) || null,
+        fitness_goal: String(fd.get("fitness_goal") || "") || null
+      };
+      onSaveMember(item);
+      onSave(existing ? `Member ${item.display_name} updated successfully.` : `Member ${item.display_name} created successfully.`);
+      return;
+    }
+
+    if (kind === "trainer") {
+      const existing = targetItem as AdminCoachItem | null;
+      const brk = Number(String(fd.get("break_interval")).replace(/\D/g, "")) as (10 | 20 | 30) || 10;
+      const item: AdminCoachItem = {
+        id: existing ? existing.id : `coach-${Date.now().toString().slice(-4)}`,
+        coach_id: existing ? existing.coach_id : Math.floor(10 + Math.random() * 90),
+        coach_no: String(fd.get("coach_no") || existing?.coach_no || "1005"),
+        user_id: existing ? existing.user_id : Math.floor(100 + Math.random() * 900),
+        display_name: String(fd.get("display_name") || existing?.display_name || "New Coach"),
+        username: String(fd.get("username") || existing?.username || "new.coach"),
+        email: String(fd.get("email") || existing?.email || "coach@fitbooking.local"),
+        phone: String(fd.get("phone") || existing?.phone || "+66 81 000 0000"),
+        coach_level: (fd.get("coach_level") as CoachLevel) || "ADVANCED",
+        status: (fd.get("status") as "ACTIVE" | "ON_LEAVE" | "RESIGNED") || "ACTIVE",
+        service_mode: (fd.get("service_mode") as CoachServiceMode) || "BOTH",
+        break_interval: brk,
+        years_experience: Number(fd.get("years_experience")) || 1,
+        certifications: String(fd.get("certifications") || ""),
+        bio: String(fd.get("bio") || ""),
+        assigned_locations: String(fd.get("assigned_locations") || ""),
+        courses_taught: String(fd.get("courses_taught") || ""),
+        hired_at: String(fd.get("hired_at") || "2024-01-01"),
+        rating: Number(fd.get("rating")) || 4.8
+      };
+      onSaveCoach(item);
+      onSave(existing ? `Coach ${item.display_name} updated successfully.` : `Coach ${item.display_name} added successfully.`);
+      return;
+    }
+
+    if (kind === "location") {
+      const existing = targetItem as AdminLocationItem | null;
+      const item: AdminLocationItem = {
+        id: existing ? existing.id : `gym-${Date.now().toString().slice(-4)}`,
+        gym_id: existing ? existing.gym_id : Math.floor(10 + Math.random() * 90),
+        gym_name: String(fd.get("gym_name") || existing?.gym_name || "New Gym"),
+        address: String(fd.get("address") || existing?.address || "Chiang Mai"),
+        district: (fd.get("district") as District) || "NIMMAN",
+        phone: String(fd.get("phone") || existing?.phone || "053-000-000"),
+        facilities: String(fd.get("facilities") || existing?.facilities || ""),
+        opening_time: String(fd.get("opening_time") || "06:00"),
+        closing_time: String(fd.get("closing_time") || "22:00"),
+        latitude: Number(fd.get("latitude")) || 18.7961,
+        longitude: Number(fd.get("longitude")) || 98.9675,
+        is_active: fd.get("is_active") === "Paused" ? 0 : 1,
+        features: String(fd.get("features") || existing?.features || "")
+      };
+      onSaveLocation(item);
+      onSave(existing ? `Location ${item.gym_name} updated successfully.` : `Location ${item.gym_name} created successfully.`);
+      return;
+    }
+
+    if (kind === "course") {
+      const existing = targetItem as AdminCourseItem | null;
+      const item: AdminCourseItem = {
+        id: existing ? existing.id : `course-${Date.now().toString().slice(-4)}`,
+        course_id: existing ? existing.course_id : Math.floor(10 + Math.random() * 90),
+        course_name: String(fd.get("course_name") || existing?.course_name || "New Course"),
+        description: String(fd.get("description") || existing?.description || ""),
+        difficulty: (fd.get("difficulty") as CourseDifficulty) || "INTERMEDIATE",
+        default_duration: Number(fd.get("default_duration")) || 60,
+        equipment: String(fd.get("equipment") || existing?.equipment || ""),
+        is_active: fd.get("is_active") === "Draft" || fd.get("is_active") === "Paused" ? 0 : 1,
+        assigned_coaches: String(fd.get("assigned_coaches") || existing?.assigned_coaches || "")
+      };
+      onSaveCourse(item);
+      onSave(existing ? `Course ${item.course_name} updated successfully.` : `Course ${item.course_name} created successfully.`);
+      return;
+    }
+
+    if (kind === "package") {
+      const existing = targetItem as AdminPackageItem | null;
+      const item: AdminPackageItem = {
+        id: existing ? existing.id : `package-${Date.now().toString().slice(-4)}`,
+        package_type: (fd.get("package_type") as PackageType) || "10+3",
+        name: String(fd.get("name") || existing?.name || "New Package"),
+        paid_sessions: Number(fd.get("paid_sessions")) || 10,
+        bonus_sessions: Number(fd.get("bonus_sessions")) || 3,
+        total_sessions: Number(fd.get("total_sessions")) || 13,
+        price: Number(fd.get("price")) || 8970,
+        validity_days: Number(fd.get("validity_days")) || 180,
+        description: String(fd.get("description") || existing?.description || ""),
+        terms: String(fd.get("terms") || existing?.terms || ""),
+        status: (fd.get("status") as "Available" | "Paused") || "Available"
+      };
+      onSavePackage(item);
+      onSave(existing ? `Package ${item.name} updated successfully.` : `Package ${item.name} added successfully.`);
+      return;
+    }
+
+    if (kind === "kpi") {
+      const existing = targetItem as AdminKpiRecordItem | null;
+      if (!existing) return;
+      const item: AdminKpiRecordItem = {
+        id: existing.id,
+        coach_id: existing.coach_id,
+        coach: existing.coach,
+        level: (fd.get("level") as CoachLevel) || existing.level,
+        hours: Number(fd.get("hours")) || existing.hours,
+        sessions: Number(fd.get("sessions")) || existing.sessions,
+        rating: Number(fd.get("rating")) || existing.rating,
+        retention: Number(fd.get("retention")) || existing.retention,
+        target_hours: Number(fd.get("target_hours")) || existing.target_hours,
+        target_rating: Number(fd.get("target_rating")) || existing.target_rating,
+        target_retention: Number(fd.get("target_retention")) || existing.target_retention,
+        achieved: fd.get("achieved") === "Achieved"
+      };
+      onSaveKpiRecord(item);
+      onSave(`KPI record for ${item.coach} updated successfully.`);
+      return;
+    }
+
+    if (kind === "workflow") {
+      if (active === "KPI" && onRecalculateKpi) {
+        onRecalculateKpi();
+        onSave("KPI snapshots recalculated based on current kpi_rule thresholds.");
+      } else {
+        onSave("Workflow saved locally.");
+      }
+      return;
+    }
+
+    onSave(`${info.title} preview saved locally.`);
   };
-  return <div className="admin-drawer-backdrop" role="presentation" onClick={onClose}><aside className="admin-form-drawer" role="dialog" aria-modal="true" aria-label={info.title} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{info.eyebrow}</span><h2>{info.title}</h2><p>{info.description}</p></div><button className="icon-button" aria-label="Close form" onClick={onClose}><X size={19} /></button></header><form className="admin-form" onSubmit={closeAfterSave}><AdminFormFields kind={kind} /><div className="admin-form-note"><ShieldCheck size={14} /><span>Preview only. Fields are shown to agree on the design before API wiring.</span></div><footer><button type="button" className="button button-outline" onClick={onClose}>Cancel</button><button type="submit" className="button button-primary">{kind === "filters" || kind === "auditFilters" ? "Apply filters" : kind === "workflow" ? "Save workflow" : kind === "report" ? "Generate preview" : "Save draft"}</button></footer></form></aside></div>;
+
+  return <div className="admin-drawer-backdrop" role="presentation" onClick={onClose}><aside className="admin-form-drawer" role="dialog" aria-modal="true" aria-label={info.title} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{info.eyebrow}</span><h2>{info.title}</h2><p>{info.description}</p></div><button className="icon-button" aria-label="Close form" onClick={onClose}><X size={19} /></button></header>
+    <form className="admin-form" onSubmit={handleSubmit}>
+      <AdminFormFields kind={kind} targetItem={targetItem} />
+      <div className="admin-form-note"><ShieldCheck size={14} /><span>Preview modifications are reactive and update the local admin management state immediately.</span></div>
+      <footer>
+        <button type="button" className="button button-outline" onClick={onClose}>Cancel</button>
+        <button type="submit" className="button button-primary">{isEdit ? "Save changes" : kind === "filters" || kind === "auditFilters" ? "Apply filters" : kind === "workflow" ? "Run workflow" : kind === "report" ? "Generate preview" : "Create record"}</button>
+      </footer>
+    </form>
+  </aside></div>;
 }
 
-function AdminFormFields({ kind }: { kind: AdminModalKind }) {
-  if (kind === "trainer") return <><AdminFormSection title="Account"><AdminFormField label="Full name" placeholder="Ploy Rattanakorn" /><AdminFormField label="Username" placeholder="coach.ploy" /><AdminFormField label="Email address" placeholder="ploy@fitbooking.local" /><AdminFormField label="Phone number" placeholder="+66 81 234 5678" /><AdminFormField label="Temporary password" placeholder="Set an initial password" type="password" /></AdminFormSection><AdminFormSection title="Coach profile"><AdminFormField label="Coach number" placeholder="1004" /><AdminFormField label="Coach level" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED", "MASTER"]} value="ADVANCED" /><AdminFormField label="Years of experience" placeholder="5" type="number" /><AdminFormField label="Service mode" type="select" options={["GYM", "HOME", "BOTH"]} value="BOTH" /><AdminFormField label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value="10 minutes" /><AdminFormField label="Certifications" placeholder="ACE CPT, First Aid" /><AdminFormField label="Bio" placeholder="A short introduction for members" multiline /></AdminFormSection><AdminFormSection title="Services and availability"><AdminFormField label="Assigned locations" placeholder="Nimman Fitness Club, Old City Studio" /><AdminFormField label="Courses taught" placeholder="Strength & Conditioning, Mobility" /><AdminFormField label="Weekly availability" placeholder="Mon–Fri · 08:00–17:00" /><AdminFormField label="Hire date" type="date" /></AdminFormSection></>;
-  if (kind === "member") return <><AdminFormSection title="Account"><AdminFormField label="Display name" placeholder="Alex Morgan" /><AdminFormField label="Username" placeholder="alex.morgan" /><AdminFormField label="Email address" placeholder="alex.morgan@example.com" /><AdminFormField label="Phone number" placeholder="+66 82 345 6789" /><AdminFormField label="Password" type="password" placeholder="Set a temporary password" /></AdminFormSection><AdminFormSection title="Member profile"><AdminFormField label="Membership level" type="select" options={["BRONZE", "SILVER", "GOLD"]} value="BRONZE" /><AdminFormField label="Gender" type="select" options={["Prefer not to say", "MALE", "FEMALE", "OTHER"]} value="Prefer not to say" /><AdminFormField label="Date of birth" type="date" /><div className="admin-form-grid"><AdminFormField label="Height (cm)" placeholder="170" type="number" /><AdminFormField label="Weight (kg)" placeholder="68" type="number" /></div><AdminFormField label="Fitness goal" placeholder="Build strength and stay consistent" multiline /></AdminFormSection></>;
-  if (kind === "location") return <><AdminFormSection title="Location profile"><AdminFormField label="Location name" placeholder="Nimman Fitness Club" /><AdminFormField label="Address" placeholder="Nimman Road, Chiang Mai" multiline /><AdminFormField label="District" type="select" options={["NIMMAN", "OLD_CITY", "CENTRAL", "MAE_RIM", "HANG_DONG"]} value="NIMMAN" /><AdminFormField label="Phone number" placeholder="+66 52 123 456" /><AdminFormField label="Facilities" placeholder="Racks, barbells, mats, changing rooms" multiline /></AdminFormSection><AdminFormSection title="Opening hours and map"><div className="admin-form-grid"><AdminFormField label="Opening time" type="time" value="06:00" /><AdminFormField label="Closing time" type="time" value="22:00" /></div><div className="admin-form-grid"><AdminFormField label="Latitude" placeholder="18.7961" type="number" /><AdminFormField label="Longitude" placeholder="98.9793" type="number" /></div><AdminFormField label="Location status" type="select" options={["Active", "Paused"]} value="Active" /></AdminFormSection></>;
-  if (kind === "course") return <><AdminFormSection title="Course catalogue"><AdminFormField label="Course name" placeholder="Strength & Conditioning" /><AdminFormField label="Description" placeholder="Build strength. Improve performance." multiline /><AdminFormField label="Difficulty" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED"]} value="INTERMEDIATE" /><AdminFormField label="Default duration (minutes)" placeholder="60" type="number" /><AdminFormField label="Equipment" placeholder="Racks, barbells, benches" multiline /><AdminFormField label="Catalogue status" type="select" options={["Active", "Draft"]} value="Active" /></AdminFormSection><AdminFormSection title="Coach assignments"><AdminFormField label="Assigned coaches" placeholder="Coach Tan, Coach May" /><AdminFormField label="Default note for booking" placeholder="Arrive 10 minutes early" multiline /></AdminFormSection></>;
-  if (kind === "package") return <><AdminFormSection title="Package terms"><AdminFormField label="Package type" type="select" options={["5+1", "10+3", "20+7"]} value="10+3" /><div className="admin-form-grid"><AdminFormField label="Paid sessions" placeholder="10" type="number" /><AdminFormField label="Bonus sessions" placeholder="3" type="number" /></div><AdminFormField label="Total sessions" placeholder="13" type="number" /><AdminFormField label="Price (THB)" placeholder="8970.00" type="number" /><AdminFormField label="Validity (days)" placeholder="180" type="number" /><AdminFormField label="Package status" type="select" options={["Active", "Paused"]} value="Active" /></AdminFormSection><AdminFormSection title="Member-facing copy"><AdminFormField label="Short description" placeholder="A steady rhythm for building a routine." multiline /><AdminFormField label="Terms and notes" placeholder="Unused sessions remain on the account until expiry." multiline /></AdminFormSection></>;
-  if (kind === "booking") return <><AdminFormSection title="Session"><AdminFormField label="Member" placeholder="Alex Morgan" /><AdminFormField label="Coach" placeholder="Tan Chaiyaporn · 1001" /><AdminFormField label="Course" placeholder="Strength & Conditioning" /><div className="admin-form-grid"><AdminFormField label="Booking date" type="date" value="2026-04-22" /><AdminFormField label="Start time" type="time" value="08:00" /></div><AdminFormField label="Duration (minutes)" placeholder="60" type="number" /><AdminFormField label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value="10 minutes" /></AdminFormSection><AdminFormSection title="Service and payment"><AdminFormField label="Service mode" type="select" options={["GYM", "HOME"]} value="GYM" /><AdminFormField label="Location or service district" placeholder="Nimman Fitness Club" /><AdminFormField label="Member package" placeholder="10+3 package · 7 sessions remaining" /><AdminFormField label="Price (THB)" placeholder="800.00" type="number" /><AdminFormField label="Booking status" type="select" options={["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"]} value="PENDING" /></AdminFormSection></>;
+function AdminFormFields({ kind, targetItem }: { kind: AdminModalKind; targetItem?: any }) {
+  if (kind === "booking") {
+    const b = targetItem as AdminBookingItem | undefined;
+    return <>
+      <AdminFormSection title="Booking session">
+        <AdminFormField name="member_name" label="Member name" value={b?.member_name || ""} placeholder="e.g. Alex Morgan" />
+        <AdminFormField name="coach_name" label="Coach name" value={b?.coach_name || ""} placeholder="e.g. Tan Chaiyaporn" />
+        <AdminFormField name="course_name" label="Course" value={b?.course_name || ""} placeholder="e.g. Strength & Conditioning" />
+        <div className="admin-form-grid">
+          <AdminFormField name="booking_date" label="Booking date" type="date" value={b?.booking_date || "2026-04-22"} />
+          <AdminFormField name="start_time" label="Start time" type="time" value={b?.start_time || "08:00"} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="duration_minutes" label="Duration (minutes)" type="number" value={b?.duration_minutes ?? 60} />
+          <AdminFormField name="break_minutes" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={b ? `${b.break_minutes} minutes` : "10 minutes"} />
+        </div>
+      </AdminFormSection>
+      <AdminFormSection title="Service & Location">
+        <AdminFormField name="service_mode" label="Service mode" type="select" options={["GYM", "HOME"]} value={b?.service_mode || "GYM"} />
+        <AdminFormField name="gym_name" label="Gym location (if GYM)" value={b?.gym_name || "Nimman Fitness Club"} placeholder="e.g. Nimman Fitness Club" />
+        <div className="admin-form-grid">
+          <AdminFormField name="service_district" label="Service district (if HOME)" type="select" options={["NIMMAN", "OLD_CITY", "CENTRAL", "MAE_RIM", "HANG_DONG"]} value={b?.service_district || "NIMMAN"} />
+          <AdminFormField name="service_address" label="Service address (if HOME)" value={b?.service_address || ""} placeholder="Street address in Chiang Mai" />
+        </div>
+      </AdminFormSection>
+      <AdminFormSection title="Payment & Status">
+        <div className="admin-form-grid">
+          <AdminFormField name="price" label="Price (THB)" type="number" value={b?.price ?? 800} />
+          <AdminFormField name="package_name" label="Package credit" value={b?.package_name || ""} placeholder="e.g. 10+3 Sessions (or empty for cash/card)" />
+        </div>
+        <AdminFormField name="status" label="Booking status" type="select" options={["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"]} value={b?.status || "CONFIRMED"} />
+        <div className="admin-form-grid">
+          <AdminFormField name="cancelled_by" label="Cancelled by (if CANCELLED)" type="select" options={["ADMIN", "MEMBER", "COACH", "SYSTEM"]} value={b?.cancelled_by || "ADMIN"} />
+          <AdminFormField name="cancel_reason" label="Cancel reason (if CANCELLED)" value={b?.cancel_reason || ""} placeholder="Reason for cancellation" />
+        </div>
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "member") {
+    const m = targetItem as AdminMemberItem | undefined;
+    return <>
+      <AdminFormSection title="Account details">
+        <AdminFormField name="display_name" label="Display name" value={m?.display_name || ""} placeholder="Alex Morgan" />
+        <AdminFormField name="username" label="Username" value={m?.username || ""} placeholder="alex.morgan" />
+        <AdminFormField name="email" label="Email address" value={m?.email || ""} placeholder="alex.morgan@example.com" />
+        <AdminFormField name="phone" label="Phone number" value={m?.phone || ""} placeholder="+66 82 345 6789" />
+        <AdminFormField name="status" label="Account status" type="select" options={["ACTIVE", "DISABLED"]} value={m?.status || "ACTIVE"} />
+      </AdminFormSection>
+      <AdminFormSection title="Membership & Spend">
+        <div className="admin-form-grid">
+          <AdminFormField name="level_code" label="Membership level" type="select" options={["BRONZE", "SILVER", "GOLD"]} value={m?.level_code || "BRONZE"} />
+          <AdminFormField name="total_spend" label="Total spend (THB)" type="number" value={m?.total_spend ?? 0} />
+        </div>
+        <AdminFormField name="remaining_sessions" label="Remaining package sessions" type="number" value={m?.remaining_sessions ?? 0} />
+      </AdminFormSection>
+      <AdminFormSection title="Fitness Profile">
+        <div className="admin-form-grid">
+          <AdminFormField name="gender" label="Gender" type="select" options={["MALE", "FEMALE", "OTHER"]} value={m?.gender || "MALE"} />
+          <AdminFormField name="birth_date" label="Date of birth" type="date" value={m?.birth_date || ""} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="height_cm" label="Height (cm)" type="number" value={m?.height_cm ?? 170} />
+          <AdminFormField name="weight_kg" label="Weight (kg)" type="number" value={m?.weight_kg ?? 68} />
+        </div>
+        <AdminFormField name="fitness_goal" label="Fitness goal" value={m?.fitness_goal || ""} placeholder="Build strength and stay consistent" multiline />
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "trainer") {
+    const c = targetItem as AdminCoachItem | undefined;
+    return <>
+      <AdminFormSection title="Account & Identity">
+        <AdminFormField name="display_name" label="Full name" value={c?.display_name || ""} placeholder="Ploy Rattanakorn" />
+        <div className="admin-form-grid">
+          <AdminFormField name="coach_no" label="Coach number (4-8 digits)" value={c?.coach_no || "1004"} placeholder="1004" />
+          <AdminFormField name="coach_level" label="Coach level" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED", "MASTER"]} value={c?.coach_level || "ADVANCED"} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="email" label="Email address" value={c?.email || ""} placeholder="ploy@fitbooking.local" />
+          <AdminFormField name="phone" label="Phone number" value={c?.phone || ""} placeholder="+66 81 234 5678" />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="status" label="Working status" type="select" options={["ACTIVE", "ON_LEAVE", "RESIGNED"]} value={c?.status || "ACTIVE"} />
+          <AdminFormField name="years_experience" label="Years of experience" type="number" value={c?.years_experience ?? 5} />
+        </div>
+      </AdminFormSection>
+      <AdminFormSection title="Service settings">
+        <div className="admin-form-grid">
+          <AdminFormField name="service_mode" label="Service mode" type="select" options={["GYM", "HOME", "BOTH"]} value={c?.service_mode || "BOTH"} />
+          <AdminFormField name="break_interval" label="Break interval" type="select" options={["10 minutes", "20 minutes", "30 minutes"]} value={c ? `${c.break_interval} minutes` : "10 minutes"} />
+        </div>
+        <AdminFormField name="assigned_locations" label="Assigned locations" value={c?.assigned_locations || ""} placeholder="Nimman Fitness Club, Old City Studio" />
+        <AdminFormField name="courses_taught" label="Courses taught" value={c?.courses_taught || ""} placeholder="Strength & Conditioning, Mobility" />
+        <div className="admin-form-grid">
+          <AdminFormField name="hired_at" label="Hire date" type="date" value={c?.hired_at || "2023-01-01"} />
+          <AdminFormField name="rating" label="Coach rating (1-5)" type="number" step="0.1" value={c?.rating ?? 4.8} />
+        </div>
+        <AdminFormField name="certifications" label="Certifications" value={c?.certifications || ""} placeholder="ACE CPT, First Aid & CPR" />
+        <AdminFormField name="bio" label="Bio" value={c?.bio || ""} placeholder="A short introduction for members" multiline />
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "location") {
+    const l = targetItem as AdminLocationItem | undefined;
+    return <>
+      <AdminFormSection title="Location Profile">
+        <AdminFormField name="gym_name" label="Location name" value={l?.gym_name || ""} placeholder="Nimman Fitness Club" />
+        <div className="admin-form-grid">
+          <AdminFormField name="district" label="District" type="select" options={["NIMMAN", "OLD_CITY", "CENTRAL", "MAE_RIM", "HANG_DONG"]} value={l?.district || "NIMMAN"} />
+          <AdminFormField name="phone" label="Phone number" value={l?.phone || ""} placeholder="+66 52 123 456" />
+        </div>
+        <AdminFormField name="address" label="Address" value={l?.address || ""} placeholder="Nimman Road, Chiang Mai" multiline />
+        <AdminFormField name="facilities" label="Facilities" value={l?.facilities || ""} placeholder="Racks, barbells, mats, changing rooms" multiline />
+      </AdminFormSection>
+      <AdminFormSection title="Opening hours and map">
+        <div className="admin-form-grid">
+          <AdminFormField name="opening_time" label="Opening time" type="time" value={l?.opening_time || "06:00"} />
+          <AdminFormField name="closing_time" label="Closing time" type="time" value={l?.closing_time || "22:00"} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="latitude" label="Latitude" type="number" step="0.0001" value={l?.latitude ?? 18.7961} />
+          <AdminFormField name="longitude" label="Longitude" type="number" step="0.0001" value={l?.longitude ?? 98.9793} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="is_active" label="Location status" type="select" options={["Active", "Paused"]} value={l?.is_active === 0 ? "Paused" : "Active"} />
+          <AdminFormField name="features" label="Features / Notes" value={l?.features || ""} placeholder="8 coaches · Strength, HIIT, Mobility" />
+        </div>
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "course") {
+    const cr = targetItem as AdminCourseItem | undefined;
+    return <>
+      <AdminFormSection title="Course catalogue">
+        <AdminFormField name="course_name" label="Course name" value={cr?.course_name || ""} placeholder="Strength & Conditioning" />
+        <div className="admin-form-grid">
+          <AdminFormField name="difficulty" label="Difficulty" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED"]} value={cr?.difficulty || "INTERMEDIATE"} />
+          <AdminFormField name="default_duration" label="Default duration (minutes, multiple of 10)" type="number" value={cr?.default_duration ?? 60} />
+        </div>
+        <AdminFormField name="equipment" label="Equipment" value={cr?.equipment || ""} placeholder="Racks, barbells, benches" />
+        <AdminFormField name="description" label="Description" value={cr?.description || ""} placeholder="Build strength. Improve performance." multiline />
+      </AdminFormSection>
+      <AdminFormSection title="Coach assignments & Status">
+        <AdminFormField name="assigned_coaches" label="Assigned coaches" value={cr?.assigned_coaches || ""} placeholder="Coach Tan, Coach May" />
+        <AdminFormField name="is_active" label="Catalogue status" type="select" options={["Active", "Draft", "Paused"]} value={cr ? (cr.is_active === 1 ? "Active" : "Draft") : "Active"} />
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "package") {
+    const p = targetItem as AdminPackageItem | undefined;
+    return <>
+      <AdminFormSection title="Package terms">
+        <AdminFormField name="name" label="Package name" value={p?.name || ""} placeholder="10+3 Sessions" />
+        <div className="admin-form-grid">
+          <AdminFormField name="package_type" label="Package type" type="select" options={["5+1", "10+3", "20+7"]} value={p?.package_type || "10+3"} />
+          <AdminFormField name="price" label="Price (THB)" type="number" value={p?.price ?? 8970} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="paid_sessions" label="Paid sessions" type="number" value={p?.paid_sessions ?? 10} />
+          <AdminFormField name="bonus_sessions" label="Bonus sessions" type="number" value={p?.bonus_sessions ?? 3} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="total_sessions" label="Total sessions" type="number" value={p?.total_sessions ?? 13} />
+          <AdminFormField name="validity_days" label="Validity (days)" type="number" value={p?.validity_days ?? 180} />
+        </div>
+        <AdminFormField name="status" label="Package status" type="select" options={["Available", "Paused"]} value={p?.status || "Available"} />
+      </AdminFormSection>
+      <AdminFormSection title="Member-facing copy">
+        <AdminFormField name="description" label="Short description" value={p?.description || ""} placeholder="A steady rhythm for building a routine." multiline />
+        <AdminFormField name="terms" label="Terms and notes" value={p?.terms || ""} placeholder="Unused sessions remain on the account until expiry." multiline />
+      </AdminFormSection>
+    </>;
+  }
+
+  if (kind === "kpi") {
+    const k = targetItem as AdminKpiRecordItem | undefined;
+    return <>
+      <AdminFormSection title="Coach KPI Performance">
+        <div className="admin-form-grid">
+          <AdminFormField name="coach" label="Coach name" value={k?.coach || ""} placeholder="Coach Tan" />
+          <AdminFormField name="level" label="Coach level" type="select" options={["BEGINNER", "INTERMEDIATE", "ADVANCED", "MASTER"]} value={k?.level || "ADVANCED"} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="hours" label="Actual coaching hours" type="number" step="0.5" value={k?.hours ?? 80} />
+          <AdminFormField name="sessions" label="Completed sessions" type="number" value={k?.sessions ?? 60} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="rating" label="Average rating (1.0 - 5.0)" type="number" step="0.05" value={k?.rating ?? 4.8} />
+          <AdminFormField name="retention" label="Retention rate (%)" type="number" step="1" value={k?.retention ?? 50} />
+        </div>
+      </AdminFormSection>
+      <AdminFormSection title="Target thresholds & Achievement">
+        <div className="admin-form-grid">
+          <AdminFormField name="target_hours" label="Target hours" type="number" value={k?.target_hours ?? 80} />
+          <AdminFormField name="target_rating" label="Target rating" type="number" step="0.1" value={k?.target_rating ?? 4.4} />
+        </div>
+        <div className="admin-form-grid">
+          <AdminFormField name="target_retention" label="Target retention (%)" type="number" value={k?.target_retention ?? 50} />
+          <AdminFormField name="achieved" label="Performance outcome" type="select" options={["Achieved", "At risk"]} value={k?.achieved ? "Achieved" : "At risk"} />
+        </div>
+      </AdminFormSection>
+    </>;
+  }
+
   if (kind === "workflow") return <><AdminFormSection title="Workflow definition"><AdminFormField label="Workflow name" placeholder="Monthly coach KPI review" /><AdminFormField label="Purpose" placeholder="Review coaches who are below their level thresholds." multiline /><AdminFormField label="Trigger" type="select" options={["On demand", "Daily", "Weekly", "Monthly"]} value="Monthly" /><AdminFormField label="Owner" type="select" options={["Admin FitBooking", "Operations team", "System scheduler"]} value="Admin FitBooking" /><AdminFormField label="Scope" placeholder="coach_kpi_record · kpi_rule" /></AdminFormSection><AdminFormSection title="Steps"><AdminFormField label="Step 1" placeholder="Select records for the month" /><AdminFormField label="Step 2" placeholder="Compare actuals with thresholds" /><AdminFormField label="Step 3" placeholder="Create follow-up tasks and audit event" /><AdminFormField label="Internal notes" placeholder="Add context for the next admin." multiline /></AdminFormSection></>;
   if (kind === "filters" || kind === "auditFilters") return <><AdminFormSection title="Filter dimensions"><AdminFormField label="Status" type="select" options={["All statuses", "Active", "Pending", "Paused", "Completed", "Needs review"]} value="All statuses" /><AdminFormField label="Date from" type="date" /><AdminFormField label="Date to" type="date" /><AdminFormField label={kind === "auditFilters" ? "Actor" : "District / category"} placeholder={kind === "auditFilters" ? "Admin FitBooking or System" : "NIMMAN or Strength"} /><AdminFormField label={kind === "auditFilters" ? "Entity type" : "Saved view name"} placeholder={kind === "auditFilters" ? "booking, gym, course, kpi_rule" : "This week's active records"} /></AdminFormSection></>;
   return <><AdminFormSection title="Report setup"><AdminFormField label="Report name" placeholder="Weekly operations pulse" /><AdminFormField label="Date range" type="select" options={["Last 7 days", "Last 30 days", "This quarter", "Custom range"]} value="Last 7 days" /><div className="admin-form-grid"><AdminFormField label="From" type="date" /><AdminFormField label="To" type="date" /></div><AdminFormField label="Group by" type="select" options={["Day", "Coach", "Location", "Course", "Membership level"]} value="Day" /></AdminFormSection><AdminFormSection title="Measures"><AdminFormField label="Include metrics" placeholder="Bookings, revenue, retention, coach rating, package sales" multiline /><AdminFormField label="Audience" type="select" options={["Admin only", "Operations team", "Export-ready view"]} value="Admin only" /><AdminFormField label="Notes" placeholder="What should this report help the team decide?" multiline /></AdminFormSection></>;
@@ -595,8 +1505,37 @@ function AdminFormSection({ title, children }: { title: string; children: React.
   return <section className="admin-form-section"><h3>{title}</h3>{children}</section>;
 }
 
-function AdminFormField({ label, placeholder, type = "text", value = "", options = [], multiline = false }: { label: string; placeholder?: string; type?: "text" | "number" | "password" | "date" | "time" | "select"; value?: string; options?: string[]; multiline?: boolean }) {
-  return <label className="admin-form-field"><span>{label}</span>{type === "select" ? <select defaultValue={value}>{options.map((option) => <option key={option}>{option}</option>)}</select> : multiline ? <textarea defaultValue={value} placeholder={placeholder} rows={3} /> : <input type={type} defaultValue={value} placeholder={placeholder} />}</label>;
+function AdminFormField({
+  name,
+  label,
+  placeholder,
+  type = "text",
+  value = "",
+  options = [],
+  multiline = false,
+  step
+}: {
+  name?: string;
+  label: string;
+  placeholder?: string;
+  type?: "text" | "number" | "password" | "date" | "time" | "select";
+  value?: string | number;
+  options?: string[];
+  multiline?: boolean;
+  step?: string;
+}) {
+  return <label className="admin-form-field">
+    <span>{label}</span>
+    {type === "select" ? (
+      <select name={name} defaultValue={String(value)}>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    ) : multiline ? (
+      <textarea name={name} defaultValue={String(value)} placeholder={placeholder} rows={3} />
+    ) : (
+      <input name={name} type={type} step={step} defaultValue={value} placeholder={placeholder} />
+    )}
+  </label>;
 }
 
 function WorkspaceMobileNav({ items, active, navigate }: { items: readonly (readonly [string, string, LucideIcon])[]; active: string; navigate: Navigate }) {

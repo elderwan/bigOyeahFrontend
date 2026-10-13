@@ -1225,7 +1225,6 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .admin-table { min-width: 520px; }
 }
 
-<<<<<<< HEAD
 .admin-catalog-row {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) auto auto 30px;
@@ -1490,7 +1489,8 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .admin-form-field { margin-bottom: 9px; }
   .admin-report-controls { align-items: stretch; width: 100%; }
   .admin-report-controls .workspace-select { min-width: 0; flex: 1; }
-=======
+}
+
 .filter-count { display: grid; min-width: 17px; height: 17px; place-items: center; padding: 0 4px; color: white; background: var(--forest); border-radius: 20px; font-size: 9px; }
 .active-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .active-filter-chips button { display: inline-flex; align-items: center; gap: 6px; min-height: 27px; padding: 0 9px; color: #3f684c; background: #edf5ed; border: 1px solid #dceadd; border-radius: 20px; font-size: 9px; cursor: pointer; }
@@ -1729,5 +1729,4 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .app-error-content {
     padding: 28px 22px;
   }
->>>>>>> 17f019a53f13f33a2446a57451112e57f6933e32
 }

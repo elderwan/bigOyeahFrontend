@@ -31,14 +31,9 @@ export type Screen =
   | "checkout" | "success" | "bookings" | "packages" | "reviews"
   | "packageDetail" | "progress" | "profile" | "signin" | "signup"
   | "trainerHome" | "trainerSchedule" | "trainerMessages" | "messages" | "trainerClients"
-<<<<<<< HEAD
-  | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
+  | "bookingDetail" | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
   | "adminTrainers" | "adminLocations" | "adminCourses" | "adminPackages"
   | "adminKpi" | "adminReports" | "adminAudit" | "adminSettings";
-=======
-  | "bookingDetail" | "trainerProgress" | "admin" | "adminBookings" | "adminMembers"
-  | "adminTrainers" | "adminPackages" | "adminReports" | "adminSettings";
->>>>>>> 17f019a53f13f33a2446a57451112e57f6933e32
 
 const screenNames: Record<Screen, string> = {
   welcome: "Welcome",
