@@ -24,7 +24,7 @@ import {
 import { MemberBookingPicker } from "@/components/member-booking-picker";
 import {
   MemberPreviewBooking, preview_coach_courses, preview_coach_listings, preview_courses, preview_member_bookings,
-  dateNow, formatBookingDate, dateOffset, weekdayForDate, preview_membership_levels
+  dateNow, formatBookingDate, dateOffset, toBusinessDateTime, weekdayForDate, preview_membership_levels
 } from "@/lib/member-preview-data";
 import { MembershipLevel, PackageType, PaymentMethod, ReviewCoach } from "@/lib/database";
 import { bookingStatusClasses, labels } from "@/lib/labels";
@@ -227,6 +227,7 @@ export function FitBookingPrototype() {
   const [course_id, setCourseId] = useState(1);
   const [booking_date, setBookingDate] = useState("");
   const [start_time, setStartTime] = useState("");
+  const [bookingSelectionValid, setBookingSelectionValid] = useState(false);
   const [service_mode, setServiceMode] = useState<"GYM" | "HOME">("GYM");
   const [district, setDistrict] = useState("NIMMAN");
   const [payment_method, setPaymentMethod] = useState<PaymentMethod>("PROMPTPAY");
@@ -398,7 +399,7 @@ export function FitBookingPrototype() {
   };
   const cancelMemberBooking = (item: MemberPreviewBooking, cancel_reason: string) => {
     const now = new Date();
-    const startDateTime = new Date(`${item.booking.booking_date}T${item.booking.start_time}`);
+    const startDateTime = toBusinessDateTime(item.booking.booking_date, item.booking.start_time);
     const freeCancel = startDateTime.getTime() - now.getTime() >= 24 * 60 * 60 * 1000;
     const updatedBooking = {
       ...item.booking,
@@ -425,10 +426,20 @@ export function FitBookingPrototype() {
     notify(freeCancel ? "Session cancelled. The preview reflects a full refund." : "Session cancelled. This preview reflects the no-refund window.");
   };
   const selectCoachListing = (selected_coach_id: number, selected_course_id: number) => {
+    const listing = preview_coach_listings.find((item) => item.coach.coach_id === selected_coach_id);
     setCoachId(selected_coach_id);
     setCourseId(selected_course_id);
     setBookingDate("");
     setStartTime("");
+    setBookingSelectionValid(false);
+    setServiceMode(listing?.coach.service_mode === "HOME" ? "HOME" : "GYM");
+    setDistrict(listing?.coach_service.service_area || listing?.gym.district || "NIMMAN");
+  };
+  const selectCourse = (selected_course_id: number) => {
+    setCourseId(selected_course_id);
+    setBookingDate("");
+    setStartTime("");
+    setBookingSelectionValid(false);
   };
   const currentListing = preview_coach_listings.find((item) => item.coach.coach_id === coach_id) || preview_coach_listings[0];
   const currentCourse = preview_courses.find((item) => item.course_id === course_id) || preview_courses[0];
@@ -503,9 +514,9 @@ export function FitBookingPrototype() {
       <main className="screen-content">
         {screen === "home" && account && <HomeScreen navigate={navigate} notify={notify} account={account} />}
         {screen === "explore" && <ExploreScreen search={search} setSearch={setSearch} favorites={favorites} toggleFavorite={toggleFavorite} navigate={navigate} onSelectCoach={selectCoachListing} />}
-        {screen === "coach" && <CoachProfile navigate={navigate} notify={notify} coach={currentListing} course_id={course_id} favorite={favorites.includes(currentListing.display_name)} toggleFavorite={() => toggleFavorite(currentListing.display_name)} onChooseCourse={(selected_course_id) => { setCourseId(selected_course_id); navigate("booking"); }} />}
-        {screen === "courses" && <CoursesScreen navigate={navigate} coach_id={coach_id} course_id={course_id} onSelectCourse={(selected_course_id) => { setCourseId(selected_course_id); navigate("booking"); }} />}
-        {screen === "booking" && <BookingScreen coach_id={coach_id} course_id={course_id} booking_date={booking_date} setBookingDate={setBookingDate} start_time={start_time} setStartTime={setStartTime} service_mode={service_mode} setMode={setServiceMode} district={district} setDistrict={setDistrict} navigate={navigate} coach={currentListing} course={currentCourse} membership_level={membership_level} />}
+        {screen === "coach" && <CoachProfile navigate={navigate} notify={notify} coach={currentListing} course_id={course_id} favorite={favorites.includes(currentListing.display_name)} toggleFavorite={() => toggleFavorite(currentListing.display_name)} onChooseCourse={(selected_course_id) => { selectCourse(selected_course_id); navigate("booking"); }} />}
+        {screen === "courses" && <CoursesScreen navigate={navigate} coach_id={coach_id} course_id={course_id} onSelectCourse={(selected_course_id) => { selectCourse(selected_course_id); navigate("booking"); }} />}
+        {screen === "booking" && <BookingScreen coach_id={coach_id} course_id={course_id} booking_date={booking_date} setBookingDate={setBookingDate} start_time={start_time} setStartTime={setStartTime} bookingSelectionValid={bookingSelectionValid} setBookingSelectionValid={setBookingSelectionValid} service_mode={service_mode} setMode={setServiceMode} district={district} setDistrict={setDistrict} navigate={navigate} coach={currentListing} course={currentCourse} membership_level={membership_level} />}
         {screen === "checkout" && <CheckoutScreen booking_date={booking_date} start_time={start_time} service_mode={service_mode} package_type={package_type} setPackageChoice={setPackageChoice} membership_level={membership_level} setLevelId={setLevelId} payment_method={payment_method} setPaymentMethod={setPaymentMethod} navigate={navigate} course={currentCourse} coach={currentListing} />}
         {screen === "success" && <SuccessScreen booking_date={booking_date} start_time={start_time} navigate={navigate} course={currentCourse} coach={currentListing} />}
         {screen === "bookings" && <BookingsScreen tab={bookingTab} setTab={setBookingTab} navigate={navigate} previewBookings={previewBookings} onOpenBooking={(item) => openBookingDetail(item, "bookings")} onSubmitReview={submitBookingReview} />}
@@ -678,28 +689,100 @@ function CoursesScreen({ navigate, coach_id, course_id, onSelectCourse }: {
 }
 
 function BookingScreen({
-  coach_id, course_id, booking_date, setBookingDate, start_time, setStartTime,
+  coach_id, course_id, booking_date, setBookingDate, start_time, setStartTime, bookingSelectionValid, setBookingSelectionValid,
   service_mode, setMode, district, setDistrict, navigate, coach, course, membership_level
 }: {
   coach_id: number; course_id: number; booking_date: string; setBookingDate: (value: string) => void;
-  start_time: string; setStartTime: (value: string) => void; service_mode: "GYM" | "HOME";
+  start_time: string; setStartTime: (value: string) => void; bookingSelectionValid: boolean;
+  setBookingSelectionValid: (value: boolean) => void; service_mode: "GYM" | "HOME";
   setMode: (value: "GYM" | "HOME") => void; district: string; setDistrict: (value: string) => void;
   navigate: (screen: Screen) => void;
   coach: (typeof preview_coach_listings)[number];
   course: (typeof preview_courses)[number];
   membership_level: MembershipLevel;
 }) {
-  const districts = Object.keys(labels.district) as (keyof typeof labels.district)[];
-  const coach_course = preview_coach_courses.find((item) => item.coach_id === coach_id && item.course_id === course_id) || coach.coach_course;
+  const coach_course = preview_coach_courses.find((item) => item.coach_id === coach_id && item.course_id === course_id);
+  const supportsGym = coach.coach.service_mode !== "HOME" &&
+    coach.coach_service.gym_id === coach.gym.gym_id && coach.gym.is_active === 1;
+  const supportsHome = coach.coach.service_mode !== "GYM" && coach.coach_service.is_home_service === 1;
+  const districts = coach.coach_service.service_area
+    ? [coach.coach_service.service_area]
+    : Object.keys(labels.district) as (keyof typeof labels.district)[];
+  const validPlace = service_mode === "GYM"
+    ? supportsGym
+    : supportsHome && districts.includes(district as keyof typeof labels.district);
+  const validCourse = course.is_active === 1 && coach_course?.is_active === 1 &&
+    coach_course.coach_id === coach_id && coach_course.course_id === course_id;
+  const canContinue = bookingSelectionValid && validCourse && validPlace;
+
+  useEffect(() => {
+    if (service_mode === "GYM" && !supportsGym && supportsHome) {
+      setMode("HOME");
+      if (coach.coach_service.service_area) setDistrict(coach.coach_service.service_area);
+    } else if (service_mode === "HOME" && !supportsHome && supportsGym) {
+      setMode("GYM");
+    }
+  }, [coach.coach_service.service_area, service_mode, setDistrict, setMode, supportsGym, supportsHome]);
+
+  useEffect(() => {
+    if (supportsHome && coach.coach_service.service_area && district !== coach.coach_service.service_area) {
+      setDistrict(coach.coach_service.service_area);
+    }
+  }, [coach.coach_service.service_area, district, setDistrict, supportsHome]);
+
+  const validationMessage = !booking_date || !start_time || !bookingSelectionValid
+    ? "Choose an available day and start time to continue."
+    : !validCourse
+      ? "This course is not currently offered by the selected trainer."
+      : !validPlace
+        ? "Choose a service option supported by this trainer."
+        : "";
   return <div className="content-wrap narrow-wrap">
     <button className="back-link" onClick={() => navigate("courses")}><ArrowLeft size={16} /> Back to sessions</button>
     <PageHeading eyebrow="BOOK A SESSION" title="Make some time for you." detail="Choose when and where you’d like to train." />
     <div className="booking-layout"><div className="booking-options">
       <section className="booking-course-summary"><Photo id={coach.ui.image} alt="" /><span><small>TRAIN WITH</small><b>{coach.display_name}</b><span>{course.course_name} · {course.default_duration} minutes</span></span><Pill>{labels.coach_level[coach.coach.coach_level]}</Pill></section>
-      <MemberBookingPicker coach_id={coach_id} course_id={course_id} booking_date={booking_date} start_time={start_time} onChange={(fields) => { if (fields.booking_date) setBookingDate(fields.booking_date); if (fields.start_time) setStartTime(fields.start_time); }} />
+      <MemberBookingPicker
+        coach_id={coach_id}
+        course_id={course_id}
+        booking_date={booking_date}
+        start_time={start_time}
+        break_interval={coach.coach.break_interval}
+        onChange={(fields) => {
+          if ("booking_date" in fields) setBookingDate(fields.booking_date || "");
+          if ("start_time" in fields) setStartTime(fields.start_time || "");
+        }}
+        onValidationChange={setBookingSelectionValid}
+      />
       {/* TODO(after trainer page done): redesign place selection. Keep its current interaction until then. */}
-      <section className="form-section"><div className="form-section-title"><span className="step-number">3</span><div><h2>Choose a place</h2><p>Train where it works for you.</p></div></div><div className="mode-toggle">{(["GYM", "HOME"] as const).map((item) => <button key={item} className={service_mode === item ? "selected" : ""} onClick={() => setMode(item)}>{item === "GYM" ? <Dumbbell size={16} /> : <House size={16} />}{item === "GYM" ? "Gym" : "At home"}</button>)}</div>{service_mode === "GYM" ? <button className="location-select"><MapPin size={16} /><span><b>Nimman Fitness Club</b><small>Nimman · Open until 10:00 PM</small></span><ChevronDown size={16} /></button> : <div className="select-field"><label htmlFor="district">Your neighborhood</label><select id="district" value={district} onChange={(event) => setDistrict(event.target.value)}>{districts.map((area) => <option key={area} value={area}>{labels.district[area]}</option>)}</select></div>}</section>
-    </div><aside className="booking-summary"><p className="eyebrow">YOUR SESSION</p><div className="summary-coach"><Photo id={coach.ui.image} alt="" /><span><b>{coach.display_name}</b><small>{course.course_name}</small><small><Star size={12} fill="currentColor" /> {coach.ui.avg_rating} · {coach.ui.review_count} reviews</small></span></div><div className="summary-divider" /><div className="summary-line"><span><CalendarDays size={15} /> {booking_date ? formatBookingDate(booking_date) : "Choose a date"}</span></div><div className="summary-line"><span><Clock3 size={15} /> {start_time ? `${formatSqlTime(start_time)} – ${formatSqlTime(addMinutesToSqlTime(start_time, course.default_duration))}` : "Choose a time"}</span></div><div className="summary-line"><span><MapPin size={15} /> {service_mode === "GYM" ? "Nimman Gym" : `At home · ${labels.district[district as keyof typeof labels.district] || district}`}</span></div><div className="summary-divider" /><div className="summary-line"><span>{course.default_duration} min session</span><b>฿{coach_course.price_per_session.toLocaleString()}</b></div><div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round(coach_course.price_per_session * membership_level.discount_rate).toLocaleString()}</b></div><div className="summary-total"><span>Final amount</span><b>฿{Math.round(coach_course.price_per_session * (1 - membership_level.discount_rate)).toLocaleString()}</b></div><PrimaryButton disabled={!booking_date || !start_time} onClick={() => navigate("checkout")}>Continue to checkout <ArrowRight size={16} /></PrimaryButton><p className="secure-note"><ShieldCheck size={13} /> Preview only · no booking or charge is created.</p></aside></div>
+      <section className="form-section">
+        <div className="form-section-title"><span className="step-number">3</span><div><h2>Choose a place</h2><p>Train where it works for you.</p></div></div>
+        <div className="mode-toggle">
+          <button type="button" className={service_mode === "GYM" ? "selected" : ""} aria-pressed={service_mode === "GYM"} disabled={!supportsGym} onClick={() => setMode("GYM")}><Dumbbell size={16} />Gym</button>
+          <button type="button" className={service_mode === "HOME" ? "selected" : ""} aria-pressed={service_mode === "HOME"} disabled={!supportsHome} onClick={() => setMode("HOME")}><House size={16} />At home</button>
+        </div>
+        {service_mode === "GYM"
+          ? <div className="location-select"><MapPin size={16} /><span><b>{coach.gym.gym_name}</b><small>{labels.district[coach.gym.district]} · {coach.gym.address}</small></span></div>
+          : <div className="select-field"><label htmlFor="district">Your neighborhood</label><select id="district" value={district} onChange={(event) => setDistrict(event.target.value)}>{districts.map((area) => <option key={area} value={area}>{labels.district[area]}</option>)}</select></div>}
+      </section>
+    </div>
+    <aside className="booking-summary">
+      <p className="eyebrow">YOUR SESSION</p>
+      <div className="summary-coach"><Photo id={coach.ui.image} alt="" /><span><b>{coach.display_name}</b><small>{course.course_name}</small><small><Star size={12} fill="currentColor" /> {coach.ui.avg_rating} · {coach.ui.review_count} reviews</small></span></div>
+      <div className="summary-divider" />
+      <div className="summary-line"><span><CalendarDays size={15} /> {booking_date ? formatBookingDate(booking_date) : "Choose a date"}</span></div>
+      <div className="summary-line"><span><Clock3 size={15} /> {start_time ? `${formatSqlTime(start_time)} – ${formatSqlTime(addMinutesToSqlTime(start_time, course.default_duration))}` : "Choose a time"}</span></div>
+      <div className="summary-line"><span><MapPin size={15} /> {service_mode === "GYM" ? coach.gym.gym_name : `At home · ${labels.district[district as keyof typeof labels.district] || district}`}</span></div>
+      <div className="summary-divider" />
+      <div className="summary-line"><span>{course.default_duration} min session</span><b>฿{(coach_course?.price_per_session || 0).toLocaleString()}</b></div>
+      <div className="summary-line subdued"><span>Trainer buffer · {coach.coach.break_interval} min</span><b>{course.default_duration + coach.coach.break_interval} min reserved</b></div>
+      <div className="summary-line subdued"><span>{membership_level.level_name} · {membership_level.discount_rate * 100}%</span><b>−฿{Math.round((coach_course?.price_per_session || 0) * membership_level.discount_rate).toLocaleString()}</b></div>
+      <div className="summary-total"><span>Final amount</span><b>฿{Math.round((coach_course?.price_per_session || 0) * (1 - membership_level.discount_rate)).toLocaleString()}</b></div>
+      <PrimaryButton disabled={!canContinue} onClick={() => navigate("checkout")}>Continue to checkout <ArrowRight size={16} /></PrimaryButton>
+      {!canContinue && <p className="booking-validation-note" role="status">{validationMessage}</p>}
+      <p className="secure-note"><ShieldCheck size={13} /> Preview only · no booking or charge is created.</p>
+    </aside>
+  </div>
   </div>;
 }
 
@@ -852,7 +935,7 @@ function BookingDetailScreen({ item, onBack, onPayNow, onSubmitReview, onCancel 
       <section className="booking-detail-card"><h2>Status information</h2>{booking.status === "PENDING" && <p>Payment expires {booking.expires_at || "soon"}{remainingSeconds !== null && <> · {formattedRemaining} remaining</>}{remainingSeconds === 0 && " · Payment window expired"}</p>}{booking.status === "CANCELLED" && <dl><div><dt>Cancelled by</dt><dd>{booking.cancelled_by || "Not recorded"}</dd></div><div><dt>Reason</dt><dd>{booking.cancel_reason || "Not provided"}</dd></div><div><dt>Cancelled at</dt><dd>{booking.cancelled_at || "Not recorded"}</dd></div></dl>}{booking.status === "COMPLETED" && <p>Completed {booking.completed_at || "as recorded in this preview"}.</p>}{booking.status === "CONFIRMED" && <p>Your coach has confirmed this session.</p>}{booking.status === "NO_SHOW" && <p>This session is marked as a no-show.</p>}</section></div>
     {booking.status === "COMPLETED" && <section className="booking-detail-card booking-detail-review"><h2>Review</h2>{item.review_coach ? <WrittenReview review_coach={item.review_coach} /> : <ReviewForm item={item} onSubmit={onSubmitReview} />}</section>}
     <div className="booking-detail-actions">{booking.status === "PENDING" && <PrimaryButton onClick={onPayNow}>Pay now <ArrowRight size={15} /></PrimaryButton>}{["PENDING", "CONFIRMED"].includes(booking.status) && <button className="button button-outline" onClick={() => setCancelDialogOpen(true)}>Cancel session</button>}{booking.status === "COMPLETED" && !item.review_coach && <span>Leave your review above to help your coach.</span>}</div>
-    {cancelDialogOpen && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="cancel-booking-title" className="cancel-booking-dialog"><button className="icon-button dialog-close" aria-label="Close cancellation dialog" onClick={() => setCancelDialogOpen(false)}><X size={18} /></button><h2 id="cancel-booking-title">Before you cancel</h2><p>{new Date(`${booking.booking_date}T${booking.start_time}`).getTime() - Date.now() >= 24 * 60 * 60 * 1000 ? "This session is more than 24 hours away. Cancelling now is free; a payment refund or package session return is reflected in this preview." : "This session starts within 24 hours. You can still cancel, but the payment is non-refundable and package credit is not returned."}</p><div className="cancel-dialog-actions"><button className="button button-outline" onClick={() => setCancelDialogOpen(false)}>Keep session</button><button className="button button-primary" onClick={() => { onCancel(item, "Cancelled by member"); setCancelDialogOpen(false); }}>Confirm cancellation</button></div></section></div>}
+    {cancelDialogOpen && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="cancel-booking-title" className="cancel-booking-dialog"><button className="icon-button dialog-close" aria-label="Close cancellation dialog" onClick={() => setCancelDialogOpen(false)}><X size={18} /></button><h2 id="cancel-booking-title">Before you cancel</h2><p>{toBusinessDateTime(booking.booking_date, booking.start_time).getTime() - Date.now() >= 24 * 60 * 60 * 1000 ? "This session is more than 24 hours away. Cancelling now is free; a payment refund or package session return is reflected in this preview." : "This session starts within 24 hours. You can still cancel, but the payment is non-refundable and package credit is not returned."}</p><div className="cancel-dialog-actions"><button className="button button-outline" onClick={() => setCancelDialogOpen(false)}>Keep session</button><button className="button button-primary" onClick={() => { onCancel(item, "Cancelled by member"); setCancelDialogOpen(false); }}>Confirm cancellation</button></div></section></div>}
   </div>;
 }
 
