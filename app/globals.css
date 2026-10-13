@@ -1548,6 +1548,30 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .booking-time-option b { font-size: 10px; }
 .booking-time-option span { color: #87958a; font-size: 8px; }
 .booking-time-option.selected span { color: rgba(255,255,255,.76); }
+.time-period-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.time-period-filter button { min-height: 30px; padding: 0 10px; color: #647369; background: #fff; border: 1px solid #e5ebe4; border-radius: 20px; font-size: 9px; cursor: pointer; }
+.time-period-filter button:hover { border-color: #9bbda0; color: #326b45; }
+.time-period-filter button.selected { color: #fff; background: var(--forest); border-color: var(--forest); font-weight: 600; }
+.time-wheel-pair { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; gap: 9px; }
+.time-wheel-column { min-width: 0; }
+.time-wheel-column h3 { margin: 0 0 8px; color: #586b5e; text-align: center; font-size: 10px; font-weight: 600; }
+.time-wheel-surface { position: relative; overflow: hidden; border: 1px solid #e5ebe4; border-radius: 8px; background: #fbfcfa; }
+.time-wheel-scroll { height: 220px; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scroll-snap-type: y mandatory; scroll-padding-block: 88px; scrollbar-width: none; touch-action: pan-y; user-select: none; -webkit-overflow-scrolling: touch; }
+.time-wheel-scroll::-webkit-scrollbar { display: none; }
+.time-wheel-scroll:focus-visible { outline: 3px solid rgba(56,108,225,.44); outline-offset: -3px; }
+.time-wheel-options { display: flex; flex-direction: column; padding-block: 88px; }
+.time-wheel-option { z-index: 1; display: grid; height: 44px; flex: 0 0 44px; place-items: center; color: #829087; scroll-snap-align: center; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; transition: color .12s ease, opacity .12s ease; }
+.time-wheel-option.selected { color: #174d35; font-size: 16px; font-weight: 700; }
+.time-wheel-selection { position: absolute; z-index: 0; top: 88px; right: 8px; left: 8px; height: 44px; background: #eaf4e9; border: 1px solid #d8e8d8; border-radius: 6px; pointer-events: none; }
+.time-wheel-edge-fade { position: absolute; z-index: 2; inset: 0; background: linear-gradient(to bottom, #fbfcfa 0%, rgba(251,252,250,.86) 7%, transparent 23%, transparent 77%, rgba(251,252,250,.86) 93%, #fbfcfa 100%); pointer-events: none; }
+.time-wheel-empty { display: grid; min-height: 44px; place-items: center; color: #87938a; font-size: 9px; }
+.time-wheel-readonly .time-wheel-scroll { overflow: hidden; }
+.time-wheel-readonly .time-wheel-option { cursor: default; }
+.time-wheel-separator { align-self: center; margin-top: 19px; color: #9aa59d; text-align: center; font-size: 9px; }
+.booking-reservation-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.booking-reservation-summary > div { display: grid; gap: 4px; padding: 9px 8px; background: #f7faf6; border-radius: 6px; text-align: center; }
+.booking-reservation-summary span { color: #849087; font-size: 8px; }
+.booking-reservation-summary b { color: #47624e; font-size: 10px; font-variant-numeric: tabular-nums; }
 .booking-time-help { margin: 11px 0 0; color: #8b968e; font-size: 8px; }
 .booking-picker-empty, .booking-picker-loading { display: flex; align-items: center; gap: 8px; color: #819086; font-size: 9px; }
 .booking-picker-empty { min-height: 58px; padding: 11px; background: #f8faf7; border-radius: 6px; }

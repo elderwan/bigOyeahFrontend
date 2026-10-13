@@ -40,28 +40,38 @@ export interface MemberPreviewCoachListing {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BUSINESS_TIME_ZONE = "Asia/Bangkok";
+const BUSINESS_UTC_OFFSET_HOURS = 7;
+const PREVIEW_BOOKING_WINDOW_DAYS = 60;
 const MOCK_NOW = () => new Date();
 
 export function toBusinessDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function businessDateAtOffset(days: number): string {
-  const date = new Date();
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() + days);
+  const today = toBusinessDate(new Date());
+  const [year, month, day] = today.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
   return toBusinessDate(date);
 }
 
 function businessDateOffset(date: string, days: number): string {
   const [year, month, day] = date.split("-").map(Number);
-  const next = new Date(year, month - 1, day + days, 12);
+  const next = new Date(Date.UTC(year, month - 1, day + days, 12));
   return toBusinessDate(next);
 }
 
 function businessWeekday(date: string): number {
   const [year, month, day] = date.split("-").map(Number);
-  const weekday = new Date(year, month - 1, day, 12).getDay();
+  const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
   return weekday === 0 ? 7 : weekday;
 }
 
@@ -74,10 +84,10 @@ function formatSqlTime(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}:00`;
 }
 
-function dateTimeFromBusinessFields(booking_date: string, start_time: string): Date {
+export function toBusinessDateTime(booking_date: string, start_time: string): Date {
   const [year, month, day] = booking_date.split("-").map(Number);
   const [hour, minute] = start_time.split(":").map(Number);
-  return new Date(year, month - 1, day, hour, minute);
+  return new Date(Date.UTC(year, month - 1, day, hour - BUSINESS_UTC_OFFSET_HOURS, minute));
 }
 
 export const preview_coach: Coach = {
@@ -382,7 +392,7 @@ export function getPreviewScheduleSlots(from: string, days = 60, coach_id = prev
     const templateStart = timeToMinutes(template.start_time);
     const templateEnd = timeToMinutes(template.end_time);
     for (let minutes = templateStart; minutes + 10 <= templateEnd; minutes += 10) {
-      const dateOffset = Math.floor(Date.parse(`${booking_date}T12:00:00`) / DAY_MS);
+      const dateOffset = Math.floor(Date.parse(`${booking_date}T12:00:00Z`) / DAY_MS);
       const slotIndex = Math.floor(minutes / 10);
       let status: CoachScheduleSlot["status"] = "AVAILABLE";
       if (minutes >= 12 * 60 && minutes < 13 * 60) status = "BREAK";
@@ -418,8 +428,8 @@ export function getBookableStarts(
     if (slot.status !== "AVAILABLE" || slot.slot_minute % 10 !== 0) continue;
     const startMinutes = slot.slot_hour * 60 + slot.slot_minute;
     const endWithBreak = startMinutes + course.default_duration + coach.break_interval;
-    if (endWithBreak > 24 * 60) continue;
-    const startDateTime = dateTimeFromBusinessFields(booking_date, slot.slot_start.slice(11, 19));
+    if (endWithBreak >= 24 * 60) continue;
+    const startDateTime = toBusinessDateTime(booking_date, slot.slot_start.slice(11, 19));
     if (startDateTime.getTime() <= now.getTime() + 2 * 60 * 60 * 1000) continue;
     const consecutive = Array.from({ length: need }, (_, index) => {
       const nextMinutes = startMinutes + index * 10;
@@ -431,8 +441,8 @@ export function getBookableStarts(
       booking.member_id === ownMemberId && booking.coach_id === coach_id &&
       ["PENDING", "CONFIRMED"].includes(booking.status) &&
       booking.booking_date === booking_date &&
-      startMinutes < timeToMinutes(booking.end_time) &&
-      bookingEnd > timeToMinutes(booking.start_time)
+      startMinutes < timeToMinutes(booking.end_time) + booking.break_minutes &&
+      endWithBreak > timeToMinutes(booking.start_time)
     );
     if (overlapsOwnBooking) continue;
     starts.push({
@@ -462,14 +472,14 @@ export function getPreviewMonthlyBookings(from: string, days: number): MemberPre
 export function formatBookingDate(booking_date: string): string {
   const [year, month, day] = booking_date.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {
-    weekday: "short", month: "short", day: "numeric"
-  }).format(new Date(year, month - 1, day, 12));
+    weekday: "short", month: "short", day: "numeric", timeZone: BUSINESS_TIME_ZONE
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 export function getPreviewMonthAvailability(course_id: number, from = toBusinessDate(new Date()), coach_id = preview_coach.coach_id) {
-  const slots = getPreviewScheduleSlots(from, 60, coach_id);
+  const slots = getPreviewScheduleSlots(from, PREVIEW_BOOKING_WINDOW_DAYS + 1, coach_id);
   const byMonth = new Map<string, Map<string, BookableStart[]>>();
-  for (let offset = 0; offset < 60; offset += 1) {
+  for (let offset = 0; offset <= PREVIEW_BOOKING_WINDOW_DAYS; offset += 1) {
     const booking_date = businessDateOffset(from, offset);
     const starts = getBookableStarts(booking_date, course_id, slots, MOCK_NOW(), coach_id);
     if (!starts.length) continue;
@@ -496,7 +506,9 @@ export function monthKeyForDate(booking_date: string): string {
 }
 
 export function dateLabelForMonth(monthKey: string): string {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(monthDate(monthKey));
+  const date = monthDate(monthKey);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: BUSINESS_TIME_ZONE })
+    .format(new Date(Date.UTC(date.getFullYear(), date.getMonth(), 1, 12)));
 }
 
 export function weekdayForDate(booking_date: string): number {
