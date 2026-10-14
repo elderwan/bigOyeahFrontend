@@ -41,6 +41,10 @@ import type {
   PackageType
 } from "@/lib/database";
 
+import { TrainerWorkspace } from "@/components/trainer/TrainerWorkspace";
+import { AdminAudit } from "@/components/admin/AdminAudit";
+import { Conversation } from "@/components/common/Conversation";
+
 import {
   apiCheckHealth,
   getApiBaseUrl,
@@ -471,190 +475,7 @@ function WorkspaceHeader({ name, role, onSignOut }: { name: string; role: string
   return <header className="workspace-topbar"><Brand /><div className="workspace-user"><span className="workspace-user-avatar">{name.slice(0, 1).toUpperCase()}</span><span><b>{name}</b><small>{role}</small></span><button className="button button-outline" onClick={onSignOut}><LogOut size={15} /> Sign out</button></div></header>;
 }
 
-const trainerNav = [
-  ["trainerHome", "Overview", Activity],
-  ["trainerSchedule", "Schedule", CalendarDays],
-  ["trainerMessages", "Messages", MessageCircle],
-  ["trainerClients", "Clients", UsersRound],
-  ["trainerProgress", "Progress", Award]
-] as const;
-
-function TrainerWorkspace({ screen, account, navigate, onSignOut }: { screen: string; account: PublicDemoAccount; navigate: Navigate; onSignOut: () => void }) {
-  return <main className="workspace-shell">
-    <WorkspaceHeader name={account.display_name} role="Verified trainer" onSignOut={onSignOut} />
-    <div className="workspace-body">
-      <aside className="workspace-sidebar"><p className="workspace-sidebar-label">TRAINER SPACE</p>{trainerNav.map(([key, label, Icon]) => <button key={key} className={screen === key || (key === "trainerMessages" && screen === "messages") ? "active" : ""} onClick={() => navigate(key)}><Icon size={17} />{label}{key === "trainerMessages" && <i>2</i>}</button>)}<p className="workspace-sidebar-note">Schedule and messages here are saved as a local preview.</p></aside>
-      <section className="workspace-main">
-        {screen === "trainerHome" && <TrainerOverview account={account} navigate={navigate} />}
-        {screen === "trainerSchedule" && <TrainerSchedule account={account} />}
-        {screen === "messages" && <Conversation account={account} role="COACH" />}
-        {screen === "trainerClients" && <TrainerClients />}
-        {screen === "trainerProgress" && <TrainerProgress />}
-      </section>
-    </div>
-    <WorkspaceMobileNav items={trainerNav} active={screen === "messages" ? "trainerMessages" : screen} navigate={navigate} />
-  </main>;
-}
-
-function TrainerOverview({ account, navigate }: { account: PublicDemoAccount; navigate: Navigate }) {
-  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">TUESDAY · CHIANG MAI</p><h1>Good morning, {account.display_name.split(" ")[0]}.</h1><p>Your day, your people, and the progress you’re building together.</p></div><button className="button button-primary" onClick={() => navigate("trainerSchedule")}><CalendarDays size={16} /> View schedule</button></div>
-    <div className="workspace-stat-row">{[["Sessions today", "4", "2 more to go", CalendarDays], ["Active members", "18", "3 new this month", UsersRound], ["Hours coached", "26.5", "This week", Clock3]].map(([label, value, note, Icon]) => <article className="workspace-stat" key={label as string}><span className="workspace-stat-icon"><Icon size={18} /></span><small>{label as string}</small><b>{value as string}</b><span>{note as string}</span></article>)}</div>
-    <div className="workspace-columns"><section className="workspace-panel"><div className="section-title"><div><h2>Up next</h2><p>Your Tuesday training schedule</p></div><button className="text-link" onClick={() => navigate("trainerSchedule")}>Full schedule <ArrowRight size={14} /></button></div><TrainerSessionRows compact /></section>
-      <section className="workspace-panel"><div className="section-title"><div><h2>Member check-in</h2><p>Last note from your clients</p></div><MessageCircle size={18} /></div><div className="trainer-note"><span className="member-avatar">NT</span><div><b>Nattakarn S.</b><p>“I’m ready to work on my deadlift form today.”</p><small>Strength & Conditioning · 9:10 AM</small></div></div><button className="button button-outline workspace-full-button" onClick={() => navigate("messages")}>Open messages <ArrowRight size={14} /></button></section></div>
-    <section className="workspace-panel workspace-week-panel"><div className="section-title"><div><h2>This week at a glance</h2><p>Keep the rhythm steady, not rushed.</p></div><span className="pill">12 of 16 sessions</span></div><div className="trainer-week-bars">{[["Mon", 55], ["Tue", 83], ["Wed", 42], ["Thu", 68], ["Fri", 49], ["Sat", 92], ["Sun", 22]].map(([day, height]) => <div key={day as string}><span>{height}%</span><i style={{ height: `${height}%` }} /><small>{day}</small></div>)}</div></section>
-  </div>;
-}
-
-const demoSessions = [
-  { member: "Nattakarn S.", initials: "NS", course: "Strength & Conditioning", time: "09:10 AM", length: "60 min", location: "Nimman Fitness Club", status: "Confirmed" },
-  { member: "Mali P.", initials: "MP", course: "Mobility & Flexibility", time: "11:30 AM", length: "60 min", location: "Old City Studio", status: "Confirmed" },
-  { member: "Krit S.", initials: "KS", course: "Strength Foundations", time: "02:00 PM", length: "50 min", location: "Central Fitness", status: "Pending" },
-  { member: "Pimchanok R.", initials: "PR", course: "One-to-one HIIT", time: "04:30 PM", length: "50 min", location: "At home · Nimman", status: "Confirmed" }
-];
-
-function TrainerSchedule({ account }: { account?: PublicDemoAccount }) {
-  const [day, setDay] = useState("Tue, Apr 16");
-  const [completed, setCompleted] = useState<string[]>([]);
-  const [selectedSession, setSelectedSession] = useState("");
-  const [scheduleNotice, setScheduleNotice] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const days = ["Mon, Apr 15", "Tue, Apr 16", "Wed, Apr 17", "Thu, Apr 18", "Fri, Apr 19"];
-
-  const coachId = account?.coach_id || 1001;
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    try {
-      if (getAccessToken()) {
-        const res = await apiGenerateCoachSchedule(coachId, "2026-11-30");
-        setScheduleNotice(`Dynamic schedule generated in table ${res?.table_name || `coach_schedule_${coachId}`} until 2026-11-30.`);
-      } else {
-        setScheduleNotice("Schedule generated locally.");
-      }
-    } catch (err: any) {
-      setScheduleNotice(`Generate schedule: ${err.message}`);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">YOUR WORK WEEK · COACH #{coachId}</p><h1>Schedule</h1><p>Sessions stay clear, so you can give each member your attention.</p></div><div style={{ display: "flex", gap: "8px" }}><button className="button button-outline" disabled={isGenerating} onClick={handleGenerate}><RefreshCw size={14} /> {isGenerating ? "Generating..." : "Generate schedule"}</button><button className="button button-primary" onClick={() => setSelectedSession(selectedSession ? "" : "Availability") }><Plus size={15} /> Add availability</button></div></div>
-    {scheduleNotice && <div className="workspace-notice" role="status">{scheduleNotice}<button onClick={() => setScheduleNotice("")}>Dismiss</button></div>}
-    <div className="trainer-calendar-toolbar"><div className="trainer-day-tabs">{days.map((item) => <button key={item} className={day === item ? "active" : ""} onClick={() => setDay(item)}><small>{item.split(",")[0]}</small><b>{item.split(" ")[2]}</b></button>)}</div><span><MapPin size={15} /> Chiang Mai time · GMT+7</span></div>
-    {selectedSession === "Availability" && <div className="availability-editor"><div><b>Availability preview (10-minute grid)</b><small>Choose a slot to mark your calendar as open.</small></div>{["08:00 AM", "10:00 AM", "01:00 PM", "03:00 PM"].map((time) => <button key={time} onClick={(event) => { event.currentTarget.classList.toggle("selected"); }}>{time}</button>)}</div>}
-    <section className="workspace-panel schedule-panel"><div className="section-title"><div><h2>{day}</h2><p>{day === "Tue, Apr 16" ? "Four sessions planned" : "Sample schedule · adjust your day"}</p></div><span className="pill">10-minute grid enabled</span></div><TrainerSessionRows completed={completed} onToggleComplete={(member) => setCompleted((current) => current.includes(member) ? current.filter((item) => item !== member) : [...current, member])} onDetails={setSelectedSession} /></section>
-    {selectedSession && selectedSession !== "Availability" && <div className="workspace-detail-panel"><div className="section-title"><div><h2>Session notes</h2><p>{selectedSession} · member details in this preview</p></div><button className="text-link" onClick={() => setSelectedSession("")}>Close</button></div><p>Review the member’s focus before the session. Managed under coach #{coachId}.</p><button className="button button-outline" onClick={() => setSelectedSession("")}>Done</button></div>}
-  </div>;
-}
-
-function TrainerSessionRows({ compact = false, completed = [], onToggleComplete, onDetails }: { compact?: boolean; completed?: string[]; onToggleComplete?: (member: string) => void; onDetails?: (member: string) => void }) {
-  return <div className="trainer-session-list">{(compact ? demoSessions.slice(0, 3) : demoSessions).map((session) => {
-    const done = completed.includes(session.member);
-    return <article key={session.member} className={`trainer-session-row ${done ? "is-complete" : ""}`}><div className="session-time-block"><b>{session.time}</b><span>{session.length}</span></div><i className="session-time-line" /><span className="trainer-member-avatar">{session.initials}</span><div className="trainer-session-copy"><b>{session.member}</b><span>{session.course}</span><small><MapPin size={12} /> {session.location}</small></div><span className={`booking-status ${done ? "completed" : session.status.toLowerCase()}`}>{done ? "Completed" : session.status}</span>{onDetails && <button className="icon-button" onClick={() => onDetails(session.member)} aria-label={`View ${session.member} details`}><ChevronRight size={17} /></button>}{onToggleComplete && <button className="session-complete-button" onClick={() => onToggleComplete(session.member)} aria-label={done ? "Undo completion" : "Mark session complete"}>{done ? <CheckCircle2 size={17} /> : <Check size={17} />}</button>}</article>;
-  })}</div>;
-}
-
-function TrainerClients() {
-  const [query, setQuery] = useState("");
-  const [activeMember, setActiveMember] = useState("");
-  const clients = [
-    ["Nattakarn S.", "Strength & Conditioning", "12 sessions", "photo-1534528741775-53994a69daeb"],
-    ["Mali P.", "Mobility & Flexibility", "8 sessions", "photo-1544005313-94ddf0286df2"],
-    ["Krit S.", "Strength Foundations", "5 sessions", "photo-1500648767791-00dcc994a43e"]
-  ];
-  const visible = clients.filter(([name, course]) => `${name} ${course}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">PEOPLE YOU TRAIN WITH</p><h1>Your members</h1><p>Keep every plan personal and easy to follow.</p></div><span className="pill"><UsersRound size={14} /> 18 active members</span></div><label className="search-bar trainer-client-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search members or training type" /></label><div className="workspace-panel trainer-clients-panel">{visible.map(([name, course, sessions, image]) => <article className="trainer-client-row" key={name}><span className="trainer-client-photo" aria-hidden="true" style={{ backgroundImage: `url("https://images.unsplash.com/${image}?auto=format&fit=crop&w=100&q=80")` }} /><span><b>{name}</b><small>{course}</small></span><span>{sessions}</span><button className="button button-outline" onClick={() => setActiveMember(activeMember === name ? "" : name)}>Member notes</button><button className="icon-button" onClick={() => setActiveMember(activeMember === name ? "" : name)} aria-label={`View ${name}`}><ChevronRight size={17} /></button>{activeMember === name && <p className="client-demo-note">Training focus: steady strength progress, good movement quality, and a plan that fits their week. Demo note only.</p>}</article>)}{!visible.length && <div className="empty-state"><UsersRound size={23} /><h3>No members match</h3><p>Try a different name or training type.</p></div>}</div></div>;
-}
-
-function TrainerProgress() {
-  const [period, setPeriod] = useState("This week");
-  return <div className="workspace-content"><div className="workspace-heading"><div><p className="eyebrow">YOUR PRACTICE</p><h1>Coaching progress</h1><p>A read on how your training time is taking shape.</p></div><select className="workspace-select" value={period} onChange={(event) => setPeriod(event.target.value)}><option>This week</option><option>This month</option><option>This year</option></select></div><div className="workspace-stat-row">{[["Completed sessions", "12", "of 16 planned", CheckCircle2], ["Member rating", "4.9", "from 128 notes", Star], ["Coaching hours", "26.5", period, Clock3]].map(([label, value, note, Icon]) => <article className="workspace-stat" key={label as string}><span className="workspace-stat-icon"><Icon size={18} /></span><small>{label as string}</small><b>{value as string}</b><span>{note as string}</span></article>)}</div><div className="workspace-panel"><div className="section-title"><div><h2>Member momentum</h2><p>Sample progress summaries, not live health data.</p></div><Activity size={17} /></div>{[["Nattakarn S.", "Strength", "7 / 10 sessions", 72], ["Mali P.", "Mobility", "5 / 8 sessions", 63], ["Krit S.", "Foundations", "3 / 6 sessions", 50]].map(([name, focus, count, percent]) => <div className="member-progress-row" key={name as string}><span className="trainer-member-avatar">{String(name).slice(0, 2).toUpperCase()}</span><span><b>{name as string}</b><small>{focus as string} · {count as string}</small></span><div className="goal-progress"><i style={{ width: `${percent}%` }} /></div><b>{percent}%</b></div>)}</div></div>;
-}
-
-interface DemoMessage {
-  sender: "MEMBER" | "COACH";
-  author: string;
-  text: string;
-  created_at: string;
-}
-
-function Conversation({ account, role }: { account: PublicDemoAccount; role: "MEMBER" | "COACH" }) {
-  const [messages, setMessages] = useState<DemoMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let mounted = true;
-    if (getAccessToken()) {
-      const fetcher = role === "COACH" ? apiGetCoachMeMessages() : apiGetMemberMessages();
-      fetcher.then((data) => {
-        if (mounted && Array.isArray(data) && data.length > 0) {
-          setMessages(data.map((m: any) => ({
-            sender: m.sender_role === "COACH" ? "COACH" : "MEMBER",
-            author: m.sender_name || (m.sender_role === "COACH" ? "Coach Tan" : "Alex Morgan"),
-            text: m.message_text || m.text || "",
-            created_at: m.created_at || new Date().toISOString()
-          })));
-          return;
-        }
-      }).catch(() => {});
-    }
-
-    try {
-      const raw = window.localStorage.getItem(DEMO_MESSAGES_KEY);
-      const parsed: unknown = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed)) {
-        setMessages(parsed.filter((item): item is DemoMessage =>
-          typeof item === "object" && item !== null &&
-          typeof (item as DemoMessage).text === "string" &&
-          ["MEMBER", "COACH"].includes((item as DemoMessage).sender)
-        ));
-      } else {
-        setMessages([{
-          sender: role === "MEMBER" ? "COACH" : "MEMBER",
-          author: role === "MEMBER" ? "Coach Tan" : "Alex Morgan",
-          text: "Looking forward to our next session. Is there anything you’d like to focus on?",
-          created_at: new Date().toISOString()
-        }]);
-      }
-    } catch {
-      setError("Saved demo messages could not be read. Clear this site's local storage to reset the preview chat.");
-    }
-    return () => {
-      mounted = false;
-    };
-  }, [role]);
-
-  const send = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
-    const nextMsg: DemoMessage = { sender: role, author: account.display_name, text, created_at: new Date().toISOString() };
-    const next = [...messages, nextMsg];
-
-    if (getAccessToken()) {
-      try {
-        if (role === "COACH") {
-          await apiSendCoachMeMessage({ member_id: 1, message_text: text });
-        } else {
-          await apiSendMessage({ coach_id: 1001, message_text: text });
-        }
-      } catch (err: any) {
-        console.warn("Backend chat send:", err.message);
-      }
-    }
-
-    try {
-      window.localStorage.setItem(DEMO_MESSAGES_KEY, JSON.stringify(next));
-      setMessages(next);
-      setDraft("");
-      setError("");
-    } catch {
-      setError("This message could not be saved in the browser. Check your storage settings and try again.");
-    }
-  };
-
-  return <div className="workspace-content message-page"><div className="workspace-heading"><div><p className="eyebrow">ONE-TO-ONE SUPPORT</p><h1>Messages</h1><p>Keep the conversation going between sessions.</p></div><span className="pill"><span className="availability-dot" /> Connected to chat</span></div><section className="workspace-panel conversation-panel"><header><span className="trainer-member-avatar">{role === "MEMBER" ? "TT" : "AM"}</span><span><b>{role === "MEMBER" ? "Coach Tan" : "Alex Morgan"}</b><small>{role === "MEMBER" ? "Strength & Conditioning" : "Member · Gold"}</small></span><span className="conversation-online">Active session</span></header><div className="conversation-messages" aria-live="polite">{messages.map((message, index) => <div key={`${message.created_at}-${index}`} className={`message-row ${message.sender === role ? "message-own" : ""}`}><span className="message-bubble"><small>{message.author}</small><span>{message.text}</span><time>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></span></div>)}{!messages.length && <div className="empty-state"><MessageCircle size={24} /><h3>Start a conversation</h3><p>Send your trainer a note about your next session.</p></div>}</div><form className="conversation-compose" onSubmit={send}><label className="sr-only" htmlFor="demo-message">Message</label><input id="demo-message" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder="Write a message…" /><button className="button button-primary" type="submit" disabled={!draft.trim()}><Send size={15} /> Send</button></form>{error && <p className="form-error" role="alert">{error}</p>}<p className="auth-notice">Messages are persisted to the database when connected and synced across devices.</p></section></div>;
-}
+// Modularized components TrainerWorkspace and Conversation are imported at the top
 
 export function MemberMessages({ account }: { account: PublicDemoAccount }) {
   return <Conversation account={account} role="MEMBER" />;
@@ -1373,60 +1194,7 @@ function AdminReports({ onBuild }: { onBuild: () => void }) {
   );
 }
 
-function AdminAudit({ onFilter }: { onFilter: () => void }) {
-  const [liveLogs, setLiveLogs] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (getAccessToken()) {
-      apiGetAdminAuditLog().then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setLiveLogs(data);
-        }
-      }).catch(() => {});
-    }
-  }, []);
-
-  const demoEvents = [
-    ["Admin FitBooking", "Updated KPI rule", "kpi_rule · ADVANCED", "2 min ago"],
-    ["System", "Generated monthly snapshot", "coach_kpi_record · April 2026", "18 min ago"],
-    ["Admin FitBooking", "Paused location", "gym · Hang Dong Training Room", "42 min ago"],
-    ["Coach Tan", "Completed booking", "booking · #24016", "1 hr ago"]
-  ];
-
-  return <section className="workspace-panel admin-audit-panel">
-    <div className="section-title">
-      <div>
-        <h2>Audit log</h2>
-        <p>Important changes from audit_log, newest first.</p>
-      </div>
-      <button className="button button-outline" onClick={onFilter}><Filter size={14} /> Filter events</button>
-    </div>
-    <div className="admin-audit-list">
-      {liveLogs.length > 0 ? (
-        liveLogs.map((log) => (
-          <div className="admin-audit-row" key={log.log_id}>
-            <span className="admin-audit-mark"><ClipboardList size={15} /></span>
-            <span>
-              <b>{log.action}</b>
-              <small>{log.entity_type} #{log.entity_id} · By {log.username || `User #${log.user_id}`}</small>
-            </span>
-            <time>{log.created_at ? log.created_at.replace("T", " ") : ""}</time>
-          </div>
-        ))
-      ) : (
-        demoEvents.map(([actor, action, entity, time]) => (
-          <div className="admin-audit-row" key={`${actor}-${time}`}>
-            <span className="admin-audit-mark"><ClipboardList size={15} /></span>
-            <span><b>{action}</b><small>{actor} · {entity}</small></span>
-            <time>{time}</time>
-            <button className="icon-button" aria-label={`Open ${action} event`}><MoreHorizontal size={16} /></button>
-          </div>
-        ))
-      )}
-    </div>
-    <p className="auth-notice">{liveLogs.length > 0 ? "Showing live database audit log entries from backend table `audit_log`." : "Audit entries are illustrative. The final API should keep entity type, entity id, actor, detail JSON, and created_at together."}</p>
-  </section>;
-}
 
 function AdminSettings({ status, onToggle }: { status: Record<string, AdminStatus>; onToggle: (id: string, value: AdminStatus) => void }) {
   const [liveSettings, setLiveSettings] = useState<Record<string, boolean>>({

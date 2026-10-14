@@ -522,3 +522,58 @@ export function dateOffset(booking_date: string, days: number): string {
 export function dateNow(): string {
   return toBusinessDate(new Date());
 }
+
+export function getMembershipTierInfo(totalSpend: number = 0, levelCode?: string) {
+  const spend = Number(totalSpend) || 0;
+  if (spend >= 30000 || levelCode === "PLATINUM") {
+    return {
+      tier: "Platinum",
+      tierCode: "PLATINUM",
+      discountRate: 0.15,
+      percent: 100,
+      nextTierText: "Top tier achieved",
+      toNextTier: 0,
+      nextTierName: null,
+      ratioText: "5 / 5"
+    };
+  } else if (spend >= 15000 || levelCode === "GOLD") {
+    const toNext = Math.max(0, 30000 - spend);
+    const progress = Math.min(100, Math.max(0, Math.round(((spend - 15000) / 15000) * 100)));
+    return {
+      tier: "Gold",
+      tierCode: "GOLD",
+      discountRate: 0.10,
+      percent: progress,
+      nextTierText: `฿${toNext.toLocaleString()} until Platinum`,
+      toNextTier: toNext,
+      nextTierName: "Platinum",
+      ratioText: "3 / 5"
+    };
+  } else if (spend >= 5000 || levelCode === "SILVER") {
+    const toNext = Math.max(0, 15000 - spend);
+    const progress = Math.min(100, Math.max(0, Math.round(((spend - 5000) / 10000) * 100)));
+    return {
+      tier: "Silver",
+      tierCode: "SILVER",
+      discountRate: 0.05,
+      percent: progress,
+      nextTierText: `฿${toNext.toLocaleString()} until Gold`,
+      toNextTier: toNext,
+      nextTierName: "Gold",
+      ratioText: "2 / 5"
+    };
+  } else {
+    const toNext = Math.max(0, 5000 - spend);
+    const progress = Math.min(100, Math.max(0, Math.round((spend / 5000) * 100)));
+    return {
+      tier: "Bronze",
+      tierCode: "BRONZE",
+      discountRate: 0.0,
+      percent: progress,
+      nextTierText: `฿${toNext.toLocaleString()} until Silver`,
+      toNextTier: toNext,
+      nextTierName: "Silver",
+      ratioText: "1 / 5"
+    };
+  }
+}

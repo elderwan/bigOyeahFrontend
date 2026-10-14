@@ -413,22 +413,15 @@ export async function apiCheckHealth(): Promise<{ online: boolean; baseUrl: stri
 }
 
 /**
- * Format API duration string (e.g. PT9H10M, PT8H) or time (09:10:00) into HH:MM
+ * Format API time (09:10:00 or 09:10) into HH:MM
  */
 export function formatApiTime(timeStr: string | null | undefined): string {
   if (!timeStr) return "";
-  if (timeStr.startsWith("PT")) {
-    const hoursMatch = timeStr.match(/(\d+)H/);
-    const minutesMatch = timeStr.match(/(\d+)M/);
-    const h = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
-    const m = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  }
-  const parts = timeStr.split(":");
+  const parts = String(timeStr).split(":");
   if (parts.length >= 2) {
     return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
   }
-  return timeStr;
+  return String(timeStr);
 }
 
 // -------------------------------------------------------------
@@ -551,12 +544,16 @@ export async function apiCreateBooking(payload: {
   service_mode: "GYM" | "HOME";
   service_district?: string | null;
   service_address?: string | null;
-  price: number;
+  price?: number | null;
 }): Promise<any> {
+  const bodyPayload: Record<string, any> = { ...payload };
+  if (bodyPayload.price === undefined || bodyPayload.price === null) {
+    delete bodyPayload.price;
+  }
   const res = await apiFetch<any>("/bookings", {
     method: "POST",
     requiresAuth: true,
-    body: JSON.stringify(payload)
+    body: JSON.stringify(bodyPayload)
   });
   return res.data;
 }
@@ -658,8 +655,33 @@ export async function apiGetAdminDashboard(days: number = 30): Promise<any> {
   return res.data;
 }
 
-export async function apiGetAdminAuditLog(limit: number = 50): Promise<any[]> {
-  const res = await apiFetch<any[]>(`/admin/audit-log?limit=${limit}`, { requiresAuth: true });
+export async function apiGetAdminAuditLog(
+  paramsOrLimit?: number | {
+    limit?: number;
+    offset?: number;
+    entity_type?: string;
+    action?: string;
+    user_id?: number;
+    date_from?: string;
+    date_to?: string;
+  }
+): Promise<any[]> {
+  const sp = new URLSearchParams();
+  if (typeof paramsOrLimit === "number") {
+    sp.set("limit", String(paramsOrLimit));
+  } else if (paramsOrLimit) {
+    if (paramsOrLimit.limit) sp.set("limit", String(paramsOrLimit.limit));
+    if (paramsOrLimit.offset !== undefined) sp.set("offset", String(paramsOrLimit.offset));
+    if (paramsOrLimit.entity_type) sp.set("entity_type", paramsOrLimit.entity_type);
+    if (paramsOrLimit.action) sp.set("action", paramsOrLimit.action);
+    if (paramsOrLimit.user_id) sp.set("user_id", String(paramsOrLimit.user_id));
+    if (paramsOrLimit.date_from) sp.set("date_from", paramsOrLimit.date_from);
+    if (paramsOrLimit.date_to) sp.set("date_to", paramsOrLimit.date_to);
+  } else {
+    sp.set("limit", "50");
+  }
+  const qs = sp.toString();
+  const res = await apiFetch<any[]>(`/admin/audit-log${qs ? `?${qs}` : ""}`, { requiresAuth: true });
   return res.data || [];
 }
 
@@ -1266,6 +1288,39 @@ export async function apiSendCoachMeMessage(payload: { member_id: number; messag
     method: "POST",
     requiresAuth: true,
     body: JSON.stringify(payload)
+  });
+  return res.data;
+}
+
+export async function apiBlockCoachSchedule(payload: {
+  date: string;
+  start_time: string;
+  end_time: string;
+  reason?: string;
+}): Promise<any> {
+  const res = await apiFetch<any>("/coaches/me/schedule/block", {
+    method: "POST",
+    requiresAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      reason: payload.reason || "Personal leave"
+    })
+  });
+  return res.data;
+}
+
+export async function apiGetOrderPromptPayQr(orderId: number): Promise<{
+  order_id: number;
+  order_type: string;
+  amount: number;
+  currency: string;
+  payment_status: string;
+  promptpay_payload: string;
+  qr_data: string;
+}> {
+  const res = await apiFetch<any>(`/orders/${orderId}/promptpay-qr`, {
+    method: "POST",
+    requiresAuth: true
   });
   return res.data;
 }
