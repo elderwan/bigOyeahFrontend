@@ -183,6 +183,21 @@ export interface MemberPackage {
   updated_at: string;
 }
 
+export interface PackageCatalogEntry {
+  package_type: PackageType;
+  paid_sessions: number;
+  bonus_sessions: number;
+  price: number;
+  validity_days: number;
+  is_active: number;
+}
+
+export interface MemberPackageWithPayment extends MemberPackage {
+  order_id: number | null;
+  payment_status: PaymentStatus | null;
+  payment_time: string | null;
+}
+
 export interface Booking {
   booking_id: number;
   member_id: number;

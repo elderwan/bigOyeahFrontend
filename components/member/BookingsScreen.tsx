@@ -190,6 +190,9 @@ export function BookingsScreen({
     const { booking, course } = item;
     const isReviewing = reviewDraft?.booking_id === booking.booking_id && reviewDraft.location === "past";
     const amount = item.orders[0]?.final_amount ?? booking.price;
+    const isPackageCredit =
+      booking.package_id !== null &&
+      (item.orders[0]?.payment_method === "PACKAGE_CREDIT" || amount === 0);
     const place =
       booking.service_mode === "GYM"
         ? item.gym?.gym_name || "Gym"
@@ -217,7 +220,13 @@ export function BookingsScreen({
             </small>
           </span>
           <span className="history-card-end">
-            <b>฿{amount.toLocaleString()}</b>
+            <b>{isPackageCredit ? "Package credit" : `฿${amount.toLocaleString()}`}</b>
+            {isPackageCredit && item.member_package && (
+              <small>
+                ฿{Number(item.member_package.price).toLocaleString()} package ·{" "}
+                {item.member_package.remaining_sessions}/{item.member_package.total_sessions} left
+              </small>
+            )}
             <ChevronRight size={18} />
           </span>
         </button>

@@ -9,11 +9,14 @@ import {
   CreditCard,
   LogOut,
   MoreHorizontal,
+  ShieldCheck,
   Trophy,
   UserRound,
   Wallet
 } from "lucide-react";
 import { PublicDemoAccount } from "@/lib/demo-auth";
+import { labels } from "@/lib/labels";
+import { MemberPackage } from "@/lib/database";
 import { MemberPreviewBooking, getMembershipTierInfo } from "@/lib/member-preview-data";
 
 function Pill({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -71,7 +74,10 @@ export function ProfileScreen({
   onSignOut,
   onSave,
   navigate,
-  previewBookings = []
+  previewBookings = [],
+  memberPackages = [],
+  memberPackagesLoading = false,
+  memberPackagesError = ""
 }: {
   tab: string;
   setTab: (value: string) => void;
@@ -81,6 +87,9 @@ export function ProfileScreen({
   onSave: (fields: Partial<PublicDemoAccount>) => Promise<void>;
   navigate: (screen: string) => void;
   previewBookings?: MemberPreviewBooking[];
+  memberPackages?: MemberPackage[];
+  memberPackagesLoading?: boolean;
+  memberPackagesError?: string;
 }) {
   const [displayName, setDisplayName] = useState(account.display_name);
   const [email, setEmail] = useState(account.email);
@@ -137,6 +146,7 @@ export function ProfileScreen({
   const paymentOrders = previewBookings
     .filter((b) => b.orders && b.orders.length > 0)
     .flatMap((b) => b.orders.map((o) => ({ order: o, booking: b })));
+  const activePackages = memberPackages.filter((item) => item.status === "ACTIVE");
 
   return (
     <div className="content-wrap narrow-wrap">
@@ -316,64 +326,67 @@ export function ProfileScreen({
           )}
 
           {tab === "Membership" && (
-            <div className="setting-membership">
-              <span className="membership-medal">
-                <Trophy size={22} />
-              </span>
-              <div>
-                <Pill className={tierInfo.tierCode === "BRONZE" ? "bronze-pill" : "gold-pill"}>
-                  {tierInfo.tierCode} MEMBER
-                </Pill>
-                <h3>{tierInfo.tier}</h3>
-                <p>
-                  {tierInfo.discountRate * 100}% off sessions · ฿{(Number(account.total_spend) || 0).toLocaleString()} spent to date
-                </p>
-                <div className="membership-track">
-                  <i style={{ width: `${tierInfo.percent}%` }} />
+            <>
+              <div className="setting-membership">
+                <span className="membership-medal">
+                  <Trophy size={22} />
+                </span>
+                <div>
+                  <Pill className={tierInfo.tierCode === "BRONZE" ? "bronze-pill" : "gold-pill"}>
+                    {tierInfo.tierCode} MEMBER
+                  </Pill>
+                  <h3>{tierInfo.tier}</h3>
+                  <p>
+                    {tierInfo.discountRate * 100}% off sessions · ฿{(Number(account.total_spend) || 0).toLocaleString()} spent to date
+                  </p>
+                  <div className="membership-track">
+                    <i style={{ width: `${tierInfo.percent}%` }} />
+                  </div>
+                  <small>
+                    {tierInfo.nextTierText} · Tier discount applied automatically on booking checkout
+                  </small>
+                  <button
+                    className="text-link"
+                    onClick={() => navigate("packages")}
+                    style={{ marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  >
+                    View membership benefits <ArrowRight size={14} />
+                  </button>
                 </div>
-                <small>
-                  {tierInfo.nextTierText} · Tier discount applied automatically on booking checkout
-                </small>
-                <button
-                  className="text-link"
-                  onClick={() => navigate("packages")}
-                  style={{ marginTop: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
-                >
-                  View membership benefits <ArrowRight size={14} />
-                </button>
               </div>
-            </div>
+              <section className="profile-package-balances">
+                <h3>Active session packages</h3>
+                {memberPackagesLoading ? (
+                  <p>Loading package balances…</p>
+                ) : memberPackagesError ? (
+                  <p role="alert">{memberPackagesError}</p>
+                ) : activePackages.length ? (
+                  activePackages.map((item) => (
+                    <div key={item.package_id}>
+                      <span>
+                        <b>#{item.package_id} · {labels.package_type[item.package_type]}</b>
+                        <small>
+                          {item.remaining_sessions} of {item.total_sessions} sessions remaining
+                        </small>
+                      </span>
+                      <strong>฿{Number(item.price).toLocaleString()}</strong>
+                    </div>
+                  ))
+                ) : (
+                  <p>No active session packages.</p>
+                )}
+              </section>
+            </>
           )}
 
           {tab === "Payment methods" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="saved-payment">
-                <span className="payment-method-icon">◉</span>
-                <div>
-                  <b>PromptPay QR</b>
-                  <small>
-                    {account.phone
-                      ? `Linked to ${account.phone}`
-                      : "Scan to pay with any Thai mobile banking app"}
-                  </small>
-                </div>
-                <span className="pill" style={{ color: "#166534", background: "#f0fdf4" }}>
-                  Active
-                </span>
-              </div>
-              <div className="saved-payment">
-                <span className="payment-method-icon">▣</span>
-                <div>
-                  <b>Credit / Debit Card</b>
-                  <small>Visa, Mastercard supported at checkout</small>
-                </div>
-                <button
-                  className="text-link"
-                  onClick={() => notify("Card payments are verified securely at session checkout.")}
-                >
-                  Info
-                </button>
-              </div>
+            <div className="payment-simulation-card">
+              <span className="payment-simulation-icon"><ShieldCheck size={17} /></span>
+              <span>
+                <b>No payment method is needed</b>
+                <small>This demo only uses simulated payments and does not collect card or bank details.</small>
+              </span>
+              <Pill>Demo only</Pill>
             </div>
           )}
 
@@ -386,10 +399,16 @@ export function ProfileScreen({
                       <span>
                         <b>{booking.course.course_name}</b>
                         <small>
-                          {order.created_at ? order.created_at.slice(0, 10) : booking.booking.booking_date} · {order.payment_method} · {order.payment_status}
+                          {order.payment_time || order.created_at || booking.booking.booking_date} ·{" "}
+                          {order.payment_method
+                            ? labels.payment_method[order.payment_method]
+                            : order.payment_status === "PAID"
+                            ? "Simulated payment"
+                            : "No payment method"}{" "}
+                          · {labels.payment_status[order.payment_status]}
                         </small>
                       </span>
-                      <strong>฿{Number(order.final_amount || booking.booking.price).toLocaleString()}</strong>
+                      <strong>฿{Number(order.final_amount ?? booking.booking.price).toLocaleString()}</strong>
                     </div>
                   ))}
                 </div>
@@ -398,7 +417,7 @@ export function ProfileScreen({
                   <Wallet size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
                   <h3>No payment history yet</h3>
                   <p style={{ color: "#64748b", fontSize: "13px" }}>
-                    Your session receipts and packages will be listed here after checkout.
+                    Your simulated session receipts and package purchases will be listed here after checkout.
                   </p>
                 </div>
               )}

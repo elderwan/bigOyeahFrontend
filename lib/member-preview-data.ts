@@ -1,5 +1,6 @@
 import {
-  Booking, BookingStatus, Coach, CoachCourse, CoachScheduleSlot, CoachService, MembershipLevel,
+  Booking, BookingStatus, Coach, CoachCourse, CoachScheduleSlot, CoachService, District, MembershipLevel,
+  PackageType,
   CoachWeeklyTemplate, Course, Gym, MemberPackage, Order, ReviewCoach
 } from "@/lib/database";
 
@@ -360,6 +361,123 @@ export const preview_member_bookings: MemberPreviewBooking[] = [
   makePreviewBooking(9006, -14, "16:00", "NO_SHOW", 3),
   makePreviewBooking(9007, -20, "08:00", "COMPLETED", 2)
 ];
+
+export function createSimulatedBooking({
+  booking_id,
+  order_id,
+  member_id,
+  coach,
+  course,
+  booking_date,
+  start_time,
+  service_mode,
+  service_district,
+  service_address,
+  price,
+  totalAmount,
+  discount = 0,
+  package_id = null,
+  package_type = null,
+  packageDetails
+}: {
+  booking_id: number;
+  order_id: number;
+  member_id: number;
+  coach: MemberPreviewCoachListing;
+  course: Course;
+  booking_date: string;
+  start_time: string;
+  service_mode: "GYM" | "HOME";
+  service_district: string | null;
+  service_address: string | null;
+  price: number;
+  totalAmount?: number;
+  discount?: number;
+  package_id?: number | null;
+  package_type?: PackageType | null;
+  packageDetails?: { sessions: number; price: number; validityDays: number };
+}): MemberPreviewBooking {
+  const now = new Date().toISOString();
+  const startMinutes = timeToMinutes(start_time);
+  const startTime = `${String(Math.floor(startMinutes / 60)).padStart(2, "0")}:${String(
+    startMinutes % 60
+  ).padStart(2, "0")}:00`;
+  const defaultPackageDetails: Record<PackageType, { sessions: number; price: number; validityDays: number }> = {
+    "5+1": { sessions: 6, price: 3400, validityDays: 180 },
+    "10+3": { sessions: 13, price: 8970, validityDays: 180 },
+    "20+7": { sessions: 27, price: 17550, validityDays: 180 }
+  };
+  const packageInfo = package_type ? packageDetails ?? defaultPackageDetails[package_type] : null;
+  const serviceDistrict =
+    service_mode === "HOME" && service_district ? (service_district as District) : null;
+  const booking: Booking = {
+    booking_id,
+    member_id,
+    coach_id: coach.coach.coach_id,
+    course_id: course.course_id,
+    gym_id: service_mode === "GYM" ? coach.gym.gym_id : null,
+    package_id,
+    booking_date,
+    start_time: startTime,
+    end_time: formatSqlTime(startMinutes + course.default_duration),
+    duration_minutes: course.default_duration,
+    break_minutes: coach.coach.break_interval,
+    service_mode,
+    service_district: serviceDistrict,
+    service_address: service_mode === "HOME" ? service_address : null,
+    price,
+    status: "CONFIRMED",
+    expires_at: null,
+    cancelled_by: null,
+    cancel_reason: null,
+    cancelled_at: null,
+    completed_at: null,
+    created_at: now,
+    updated_at: now
+  };
+  const order: Order = {
+    order_id,
+    order_type: "BOOKING",
+    booking_id,
+    package_id,
+    total_amount: totalAmount ?? price,
+    discount,
+    final_amount: price,
+    payment_method: null,
+    payment_status: "PAID",
+    payment_time: now,
+    refunded_at: null,
+    created_at: now,
+    updated_at: now
+  };
+  const member_package: MemberPackage | null = packageInfo && package_id
+    ? {
+        package_id,
+        member_id,
+        package_type: package_type as PackageType,
+        total_sessions: packageInfo.sessions,
+        remaining_sessions: packageInfo.sessions - 1,
+        price: packageInfo.price,
+        purchase_date: now.slice(0, 10),
+        expire_date: businessDateOffset(now.slice(0, 10), packageInfo.validityDays),
+        status: "ACTIVE",
+        created_at: now,
+        updated_at: now
+      }
+    : null;
+
+  return {
+    booking,
+    course,
+    coach: coach.coach,
+    display_name: coach.display_name,
+    gym: service_mode === "GYM" ? coach.gym : null,
+    orders: [order],
+    member_package,
+    review_coach: null,
+    ui: { coach_image: coach.ui.image }
+  };
+}
 
 function makeSlot(date: string, minutes: number, status: CoachScheduleSlot["status"]): CoachScheduleSlot {
   const [slot_year, slot_month, slot_day] = date.split("-").map(Number);

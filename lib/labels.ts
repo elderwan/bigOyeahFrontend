@@ -18,9 +18,9 @@ export const labels = {
     REFUNDED: "Refunded"
   } satisfies Record<PaymentStatus, string>,
   payment_method: {
-    PROMPTPAY: "PromptPay",
-    CARD: "Card",
-    CASH: "Cash",
+    PROMPTPAY: "Simulated payment",
+    CARD: "Simulated payment",
+    CASH: "Simulated payment",
     PACKAGE_CREDIT: "Package credit"
   } satisfies Record<PaymentMethod, string>,
   service_mode: {

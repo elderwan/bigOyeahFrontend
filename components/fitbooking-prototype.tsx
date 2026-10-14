@@ -35,6 +35,8 @@ import {
 import {
   apiGetMemberProfile,
   apiGetMemberBookings,
+  apiGetMemberPackages,
+  apiGetPackagesCatalog,
   apiCancelBooking,
   apiCreateReview,
   getAccessToken,
@@ -50,7 +52,12 @@ import {
   toBusinessDateTime,
   preview_membership_levels
 } from "@/lib/member-preview-data";
-import { PackageType, PaymentMethod, ReviewCoach } from "@/lib/database";
+import {
+  MemberPackage,
+  PackageCatalogEntry,
+  PackageType,
+  ReviewCoach
+} from "@/lib/database";
 
 // Modularized components
 import { Brand } from "@/components/common/Brand";
@@ -206,6 +213,32 @@ function routePath(screen: Screen): string {
   return `/member${screen === "home" ? "" : `#${screen}`}`;
 }
 
+function memberPackageFromBooking(row: any): MemberPackage | null {
+  if (
+    row.member_package_id == null ||
+    row.member_package_type == null ||
+    row.member_package_total_sessions == null ||
+    row.member_package_remaining_sessions == null ||
+    row.member_package_price == null
+  ) {
+    return null;
+  }
+
+  return {
+    package_id: Number(row.member_package_id),
+    member_id: Number(row.member_id),
+    package_type: row.member_package_type,
+    total_sessions: Number(row.member_package_total_sessions),
+    remaining_sessions: Number(row.member_package_remaining_sessions),
+    price: Number(row.member_package_price),
+    purchase_date: String(row.member_package_purchase_date),
+    expire_date: String(row.member_package_expire_date),
+    status: row.member_package_status,
+    created_at: String(row.member_package_created_at),
+    updated_at: String(row.member_package_updated_at)
+  };
+}
+
 function requiredRole(screen: Screen): PublicDemoAccount["role"] | null {
   if (trainerScreens.includes(screen)) return "COACH";
   if (adminScreens.includes(screen)) return "ADMIN";
@@ -240,7 +273,7 @@ export function FitBookingPrototype() {
   const [toast, setToast] = useState("");
   const [account, setAccount] = useState<PublicDemoAccount | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState("10+3");
+  const [selectedPackage, setSelectedPackage] = useState<PackageType>("10+3");
   const [search, setSearch] = useState("");
   const [bookingTab, setBookingTab] = useState("Upcoming");
   const [coach_id, setCoachId] = useState(1);
@@ -250,9 +283,9 @@ export function FitBookingPrototype() {
   const [bookingSelectionValid, setBookingSelectionValid] = useState(false);
   const [service_mode, setServiceMode] = useState<"GYM" | "HOME">("GYM");
   const [district, setDistrict] = useState("NIMMAN");
+  const [service_address, setServiceAddress] = useState("");
   const [package_type, setPackageChoice] = useState<PackageType | null>(null);
   const [level_id, setLevelId] = useState(1);
-  const [payment_method, setPaymentMethod] = useState<PaymentMethod>("PROMPTPAY");
   const [favorites, setFavorites] = useState<string[]>(["Tan Chaiyaporn"]);
   const [rating, setRating] = useState(5);
   const [reviewTags, setReviewTags] = useState<string[]>(["Motivating", "Professional", "On time"]);
@@ -261,13 +294,63 @@ export function FitBookingPrototype() {
   const [profileTab, setProfileTab] = useState("Personal information");
   const [selectedBooking, setSelectedBooking] = useState<MemberPreviewBooking | null>(null);
   const [bookingDetailReturn, setBookingDetailReturn] = useState<Screen>("bookings");
-  const [promptPayQr, setPromptPayQr] = useState<{ order_id: number; payload: string; amount?: number } | null>(null);
+  const [checkoutBooking, setCheckoutBooking] = useState<MemberPreviewBooking | null>(null);
+  const [lastPaymentSummary, setLastPaymentSummary] = useState("");
 
   // Initialize preview bookings: if logged into a live account, default to empty []
   const [previewBookings, setPreviewBookings] = useState<MemberPreviewBooking[]>(() => {
     if (typeof window !== "undefined" && getAccessToken()) return [];
     return preview_member_bookings;
   });
+  const [memberPackages, setMemberPackages] = useState<MemberPackage[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [packagesError, setPackagesError] = useState("");
+  const [packageCatalog, setPackageCatalog] = useState<PackageCatalogEntry[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+
+  const refreshMemberPackages = useCallback(async () => {
+    const sessionToken = getAccessToken();
+    if (!sessionToken) {
+      setMemberPackages([]);
+      setPackagesLoading(false);
+      setPackagesError("");
+      return;
+    }
+
+    setPackagesLoading(true);
+    setPackagesError("");
+    try {
+      const rows = await apiGetMemberPackages();
+      if (getAccessToken() === sessionToken) {
+        setMemberPackages(rows);
+        setPreviewBookings((current) =>
+          current.map((booking) => {
+            const linkedPackage = booking.booking.package_id
+              ? rows.find((item) => item.package_id === booking.booking.package_id)
+              : undefined;
+            return linkedPackage ? { ...booking, member_package: linkedPackage } : booking;
+          })
+        );
+        setSelectedBooking((current) => {
+          if (!current?.booking.package_id) return current;
+          const linkedPackage = rows.find(
+            (item) => item.package_id === current.booking.package_id
+          );
+          return linkedPackage ? { ...current, member_package: linkedPackage } : current;
+        });
+      }
+    } catch (issue) {
+      if (getAccessToken() === sessionToken) {
+        const message =
+          issue instanceof Error ? issue.message : "Your package balances could not be loaded.";
+        setPackagesError(message);
+      }
+      throw issue;
+    } finally {
+      if (getAccessToken() === sessionToken) setPackagesLoading(false);
+    }
+  }, []);
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -304,14 +387,38 @@ export function FitBookingPrototype() {
   const go = useCallback((target: Screen) => () => navigate(target), [navigate]);
 
   useEffect(() => {
+    apiGetPackagesCatalog()
+      .then((catalog) => {
+        setPackageCatalog(catalog.filter((entry) => Number(entry.is_active) === 1));
+        setCatalogError("");
+      })
+      .catch((issue) => {
+        setCatalogError(
+          issue instanceof Error ? issue.message : "Package offers could not be loaded."
+        );
+      })
+      .finally(() => setCatalogLoading(false));
+
     const safetyTimer = setTimeout(() => setAuthReady(true), 1500);
     try {
       const activeAccount = readDemoSession();
       setAccount(activeAccount);
 
-      if (getAccessToken()) {
+      const sessionToken = getAccessToken();
+      if (sessionToken) {
+        refreshMemberPackages().catch((issue) => {
+          if (getAccessToken() === sessionToken) {
+            setToast(
+              issue instanceof Error
+                ? `Your account is ready, but package balances could not be loaded: ${issue.message}`
+                : "Your account is ready, but package balances could not be loaded."
+            );
+          }
+        });
+
         apiGetMemberProfile()
           .then((profile) => {
+            if (getAccessToken() !== sessionToken) return;
             if (profile.level_id) {
               setLevelId(profile.level_id);
             }
@@ -340,6 +447,7 @@ export function FitBookingPrototype() {
             });
           })
           .catch((err) => {
+            if (getAccessToken() !== sessionToken) return;
             if (err instanceof ApiError && err.status === 401) {
               clearDemoSession();
               setAccount(null);
@@ -351,6 +459,7 @@ export function FitBookingPrototype() {
 
         apiGetMemberBookings()
           .then((bookingsList) => {
+            if (getAccessToken() !== sessionToken) return;
             if (Array.isArray(bookingsList)) {
               setPreviewBookings(
                 bookingsList.map((b: any, index: number) => {
@@ -360,62 +469,62 @@ export function FitBookingPrototype() {
                   return {
                     booking: {
                       booking_id: b.booking_id,
-                      member_id: b.member_id || 1,
-                      coach_id: b.coach_id || 1,
-                      course_id: b.course_id || 1,
-                      gym_id: b.gym_id || 1,
-                      package_id: b.package_id || null,
+                      member_id: b.member_id ?? 1,
+                      coach_id: b.coach_id ?? 1,
+                      course_id: b.course_id ?? 1,
+                      gym_id: b.gym_id ?? null,
+                      package_id: b.package_id ?? null,
                       booking_date: bookingDate,
                       start_time: startTime,
                       end_time: endTime,
-                      duration_minutes: b.duration_minutes || 60,
-                      break_minutes: b.break_minutes || 10,
+                      duration_minutes: b.duration_minutes ?? 60,
+                      break_minutes: b.break_minutes ?? 10,
                       service_mode: b.service_mode || "GYM",
                       service_district: b.service_district || null,
                       service_address: b.service_address || null,
-                      price: Number(b.price || 800),
+                      price: Number(b.price ?? 800),
                       status: b.status || "CONFIRMED",
                       expires_at: b.expires_at || null,
-                      cancelled_by: b.cancelled_by || null,
-                      cancel_reason: b.cancel_reason || null,
-                      cancelled_at: b.cancelled_at || null,
-                      completed_at: b.completed_at || null,
+                      cancelled_by: b.cancelled_by ?? null,
+                      cancel_reason: b.cancel_reason ?? null,
+                      cancelled_at: b.cancelled_at ?? null,
+                      completed_at: b.completed_at ?? null,
                       created_at: b.created_at || new Date().toISOString(),
                       updated_at: b.updated_at || new Date().toISOString()
                     },
                     course: {
-                      course_id: b.course_id || 1,
+                      course_id: b.course_id ?? 1,
                       course_name: b.course_name || "Strength & Conditioning",
-                      description: "Custom session with coach",
-                      difficulty: "INTERMEDIATE",
-                      default_duration: b.duration_minutes || 60,
-                      equipment: "Standard weights",
+                      description: b.course_description || "Custom session with coach",
+                      difficulty: b.course_difficulty || "INTERMEDIATE",
+                      default_duration: b.course_default_duration ?? b.duration_minutes ?? 60,
+                      equipment: b.course_equipment || "Standard weights",
                       is_active: 1,
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
                     },
                     coach: {
-                      coach_id: b.coach_id || 1,
+                      coach_id: b.coach_id ?? 1,
                       coach_no: "1001",
                       user_id: 3,
                       avatar_url: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61",
-                      coach_level: "ADVANCED",
+                      coach_level: b.coach_level || "ADVANCED",
                       bio: "Dedicated strength and conditioning coach",
-                      service_mode: b.service_mode || "BOTH",
+                      service_mode: b.coach_service_mode || "BOTH",
                       years_experience: 6,
                       certifications: "NASM-CPT",
-                      break_interval: 10,
+                      break_interval: b.break_interval ?? 10,
                       status: "ACTIVE",
                       hired_at: "2020-04-01",
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
                     },
                     display_name: b.coach_name || "Tan Chaiyaporn",
-                    gym: {
-                      gym_id: b.gym_id || 1,
+                    gym: b.service_mode === "GYM" && b.gym_id != null ? {
+                      gym_id: b.gym_id,
                       gym_name: b.gym_name || "Nimman Fitness Club",
-                      address: "Nimman Soi 9, Suthep, Mueang Chiang Mai",
-                      district: "NIMMAN",
+                      address: b.gym_address || "Nimman Soi 9, Suthep, Mueang Chiang Mai",
+                      district: b.gym_district || "NIMMAN",
                       phone: "+6653001001",
                       facilities: "Full weights, lockers, showers",
                       opening_time: "06:00:00",
@@ -425,27 +534,28 @@ export function FitBookingPrototype() {
                       is_active: 1,
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
-                    },
+                    } : null,
                     orders: [
                       {
-                        order_id: 1000 + index,
-                        order_no: `ORD-${b.booking_id}`,
+                        order_id: b.order_id ?? 1000 + index,
+                        order_no: `ORD-${b.order_id ?? b.booking_id}`,
                         booking_id: b.booking_id,
-                        package_id: null,
+                        package_id: b.order_package_id ?? null,
                         order_type: "BOOKING",
-                        total_amount: Number(b.price || 800),
-                        discount: 0,
-                        final_amount: Number(b.price || 800),
-                        payment_method: "PROMPTPAY",
+                        total_amount: Number(b.order_total_amount ?? b.price ?? 0),
+                        discount: Number(b.order_discount ?? 0),
+                        final_amount: Number(b.order_final_amount ?? b.price ?? 0),
+                        payment_method: b.payment_method ?? null,
                         payment_status:
-                          b.status === "CONFIRMED" || b.status === "COMPLETED" ? "PAID" : "UNPAID",
-                        payment_time: b.created_at || new Date().toISOString(),
-                        refunded_at: b.cancelled_at || null,
-                        created_at: b.created_at || new Date().toISOString(),
-                        updated_at: b.updated_at || new Date().toISOString()
+                          b.payment_status ??
+                          (b.status === "CONFIRMED" || b.status === "COMPLETED" ? "PAID" : "UNPAID"),
+                        payment_time: b.payment_time ?? null,
+                        refunded_at: b.refunded_at ?? null,
+                        created_at: b.order_created_at || b.created_at || new Date().toISOString(),
+                        updated_at: b.order_updated_at || b.updated_at || b.created_at || new Date().toISOString()
                       }
                     ],
-                    member_package: null,
+                    member_package: memberPackageFromBooking(b),
                     review_coach: null,
                     ui: {
                       coach_image: "photo-1583454110551-21f2fa2afe61"
@@ -455,7 +565,14 @@ export function FitBookingPrototype() {
               );
             }
           })
-          .catch(() => {});
+          .catch((issue) => {
+            if (getAccessToken() !== sessionToken) return;
+            setToast(
+              issue instanceof Error
+                ? `Your account is ready, but bookings could not be loaded: ${issue.message}`
+                : "Your account is ready, but bookings could not be loaded."
+            );
+          });
       }
     } catch (issue) {
       setToast(issue instanceof Error ? issue.message : "The saved profile could not be read.");
@@ -464,12 +581,14 @@ export function FitBookingPrototype() {
       setAuthReady(true);
     }
     return () => clearTimeout(safetyTimer);
-  }, []);
+  }, [refreshMemberPackages]);
 
   useEffect(() => {
     if (!authReady) return;
     const readRoute = () => {
-      const next = routeScreen();
+      const requested = routeScreen();
+      const next =
+        requested === "bookingDetail" && !selectedBooking ? "bookings" : requested;
       const role = requiredRole(next);
       if (role && account?.role !== role) {
         setScreen("signin");
@@ -482,6 +601,9 @@ export function FitBookingPrototype() {
         return;
       }
       setScreen(next);
+      if (next !== requested) {
+        window.history.replaceState(null, "", routePath(next));
+      }
     };
     readRoute();
     window.addEventListener("hashchange", readRoute);
@@ -490,7 +612,7 @@ export function FitBookingPrototype() {
       window.removeEventListener("hashchange", readRoute);
       window.removeEventListener("popstate", readRoute);
     };
-  }, [authReady, account]);
+  }, [authReady, account, selectedBooking]);
 
   const enterWorkspace = (nextAccount: PublicDemoAccount) => {
     setAccount(nextAccount);
@@ -511,6 +633,8 @@ export function FitBookingPrototype() {
       clearDemoSession();
       setAccount(null);
       setPreviewBookings(preview_member_bookings);
+      setMemberPackages([]);
+      setPackagesError("");
       setScreen("signin");
       window.history.pushState(null, "", "/signin");
       setToast("You’re signed out.");
@@ -525,76 +649,78 @@ export function FitBookingPrototype() {
     role: PublicDemoAccount["role"]
   ) => {
     const nextAccount = await signInDemoUser(identifier, password, role);
+    setToast("");
     saveDemoSession(nextAccount);
     if (nextAccount.role === "MEMBER") {
       setPreviewBookings([]);
-      try {
-        const bookingsList = await apiGetMemberBookings();
-        if (Array.isArray(bookingsList)) {
-          setPreviewBookings(
-            bookingsList.map((b: any, index: number) => {
+      if (getAccessToken()) {
+        try {
+          const bookingsList = await apiGetMemberBookings();
+          if (Array.isArray(bookingsList)) {
+            setPreviewBookings(
+              bookingsList.map((b: any, index: number) => {
               const bookingDate = String(b.booking_date);
               const startTime = formatApiTime(b.start_time);
               const endTime = formatApiTime(b.end_time);
               return {
                 booking: {
                   booking_id: b.booking_id,
-                  member_id: b.member_id || nextAccount.member_id || 1,
-                  coach_id: b.coach_id || 1,
-                  course_id: b.course_id || 1,
-                  gym_id: b.gym_id || 1,
-                  package_id: b.package_id || null,
+                  member_id: b.member_id ?? nextAccount.member_id ?? 1,
+                  coach_id: b.coach_id ?? 1,
+                  course_id: b.course_id ?? 1,
+                  gym_id: b.gym_id ?? null,
+                  package_id: b.package_id ?? null,
                   booking_date: bookingDate,
                   start_time: startTime,
                   end_time: endTime,
-                  duration_minutes: b.duration_minutes || 60,
-                  break_minutes: b.break_minutes || 10,
+                  duration_minutes: b.duration_minutes ?? 60,
+                  break_minutes: b.break_minutes ?? 10,
                   service_mode: b.service_mode || "GYM",
                   service_district: b.service_district || null,
                   service_address: b.service_address || null,
-                  price: Number(b.price || 800),
+                  price: Number(b.price ?? 800),
                   status: b.status || "CONFIRMED",
                   expires_at: b.expires_at || null,
-                  cancelled_by: b.cancelled_by || null,
-                  cancel_reason: b.cancel_reason || null,
-                  cancelled_at: b.cancelled_at || null,
-                  completed_at: b.completed_at || null,
+                  cancelled_by: b.cancelled_by ?? null,
+                  cancel_reason: b.cancel_reason ?? null,
+                  cancelled_at: b.cancelled_at ?? null,
+                  completed_at: b.completed_at ?? null,
                   created_at: b.created_at || new Date().toISOString(),
                   updated_at: b.updated_at || new Date().toISOString()
                 },
                 course: {
-                  course_id: b.course_id || 1,
+                  course_id: b.course_id ?? 1,
                   course_name: b.course_name || "Strength & Conditioning",
-                  description: "Custom session with coach",
-                  difficulty: "INTERMEDIATE",
-                  default_duration: b.duration_minutes || 60,
-                  equipment: "Standard weights",
+                  description: b.course_description || "Custom session with coach",
+                  difficulty: b.course_difficulty || "INTERMEDIATE",
+                  default_duration: b.course_default_duration ?? b.duration_minutes ?? 60,
+                  equipment: b.course_equipment || "Standard weights",
                   is_active: 1,
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
                 },
                 coach: {
-                  coach_id: b.coach_id || 1,
+                  coach_id: b.coach_id ?? 1,
                   coach_no: "1001",
                   user_id: 3,
                   avatar_url: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61",
-                  coach_level: "ADVANCED",
+                  coach_level: b.coach_level || "ADVANCED",
                   bio: "Dedicated strength and conditioning coach",
-                  service_mode: b.service_mode || "BOTH",
+                  service_mode: b.coach_service_mode || "BOTH",
                   years_experience: 6,
                   certifications: "NASM-CPT",
-                  break_interval: 10,
+                  break_interval: b.break_interval ?? 10,
                   status: "ACTIVE",
                   hired_at: "2020-04-01",
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
                 },
                 display_name: b.coach_name || "Tan Chaiyaporn",
-                gym: {
-                  gym_id: b.gym_id || 1,
+                gym: b.service_mode === "GYM" && b.gym_id != null ? {
+                  gym_id: b.gym_id,
                   gym_name: b.gym_name || "Nimman Fitness Club",
-                  address: "Nimman Soi 9, Suthep, Mueang Chiang Mai",
-                  district: "NIMMAN",
+                  address: b.gym_address || "Nimman Soi 9, Suthep, Mueang Chiang Mai",
+                  district: b.gym_district || "NIMMAN",
                   phone: "+6653001001",
                   facilities: "Full weights, lockers, showers",
                   opening_time: "06:00:00",
@@ -604,36 +730,53 @@ export function FitBookingPrototype() {
                   is_active: 1,
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
-                },
+                } : null,
                 orders: [
                   {
-                    order_id: 1000 + index,
-                    order_no: `ORD-${b.booking_id}`,
+                    order_id: b.order_id ?? 1000 + index,
+                    order_no: `ORD-${b.order_id ?? b.booking_id}`,
                     booking_id: b.booking_id,
-                    package_id: null,
+                    package_id: b.order_package_id ?? null,
                     order_type: "BOOKING",
-                    total_amount: Number(b.price || 800),
-                    discount: 0,
-                    final_amount: Number(b.price || 800),
-                    payment_method: "PROMPTPAY",
+                    total_amount: Number(b.order_total_amount ?? b.price ?? 0),
+                    discount: Number(b.order_discount ?? 0),
+                    final_amount: Number(b.order_final_amount ?? b.price ?? 0),
+                    payment_method: b.payment_method ?? null,
                     payment_status:
-                      b.status === "CONFIRMED" || b.status === "COMPLETED" ? "PAID" : "UNPAID",
-                    payment_time: b.created_at || new Date().toISOString(),
-                    refunded_at: b.cancelled_at || null,
-                    created_at: b.created_at || new Date().toISOString(),
-                    updated_at: b.updated_at || new Date().toISOString()
+                      b.payment_status ??
+                      (b.status === "CONFIRMED" || b.status === "COMPLETED" ? "PAID" : "UNPAID"),
+                    payment_time: b.payment_time ?? null,
+                    refunded_at: b.refunded_at ?? null,
+                    created_at: b.order_created_at || b.created_at || new Date().toISOString(),
+                    updated_at: b.order_updated_at || b.updated_at || b.created_at || new Date().toISOString()
                   }
                 ],
-                member_package: null,
+                member_package: memberPackageFromBooking(b),
                 review_coach: null,
                 ui: {
                   coach_image: "photo-1583454110551-21f2fa2afe61"
                 }
-              };
-            })
+                };
+              })
+            );
+          }
+        } catch (issue) {
+          notify(
+            issue instanceof Error
+              ? `Signed in, but bookings could not be loaded: ${issue.message}`
+              : "Signed in, but bookings could not be loaded."
           );
         }
-      } catch {}
+        await refreshMemberPackages().catch((issue) => {
+          notify(
+            issue instanceof Error
+              ? `Signed in, but package balances could not be loaded: ${issue.message}`
+              : "Signed in, but package balances could not be loaded."
+          );
+        });
+      } else {
+        setMemberPackages([]);
+      }
     }
     enterWorkspace(nextAccount);
   };
@@ -642,6 +785,15 @@ export function FitBookingPrototype() {
     const nextAccount = await registerDemoMember(details);
     saveDemoSession(nextAccount);
     setPreviewBookings([]);
+    if (getAccessToken()) {
+      await refreshMemberPackages().catch((issue) => {
+        notify(
+          issue instanceof Error
+            ? `Account created, but package balances could not be loaded: ${issue.message}`
+            : "Account created, but package balances could not be loaded."
+        );
+      });
+    }
     enterWorkspace(nextAccount);
     setToast("Account created successfully! Welcome to FitBooking.");
   };
@@ -805,6 +957,7 @@ export function FitBookingPrototype() {
     setBookingSelectionValid(false);
     setServiceMode(listing?.coach.service_mode === "HOME" ? "HOME" : "GYM");
     setDistrict(listing?.coach_service.service_area || listing?.gym.district || "NIMMAN");
+    setServiceAddress("");
   };
 
   const selectCourse = (selected_course_id: number) => {
@@ -980,6 +1133,15 @@ export function FitBookingPrototype() {
     { key: "progress", label: "Progress", icon: BarChart3 },
     { key: "profile", label: "Profile", icon: UserRound }
   ];
+  const displayedMemberPackages = getAccessToken()
+    ? memberPackages
+    : Array.from(
+        new Map(
+          previewBookings
+            .flatMap((item) => (item.member_package ? [item.member_package] : []))
+            .map((item) => [item.package_id, item])
+        ).values()
+      );
 
   return (
     <div className="app-frame">
@@ -1148,7 +1310,12 @@ export function FitBookingPrototype() {
               setMode={setServiceMode}
               district={district}
               setDistrict={setDistrict}
-              navigate={navigate}
+              service_address={service_address}
+              setServiceAddress={setServiceAddress}
+              navigate={(target) => {
+                if (target === "checkout") setCheckoutBooking(null);
+                navigate(target);
+              }}
               coach={currentListing}
               course={currentCourse}
               membership_level={membership_level}
@@ -1160,25 +1327,49 @@ export function FitBookingPrototype() {
               start_time={start_time}
               service_mode={service_mode}
               package_type={package_type}
+              packageCatalog={packageCatalog}
+              catalogLoading={catalogLoading}
+              catalogError={catalogError}
               setPackageChoice={setPackageChoice}
               membership_level={membership_level}
               setLevelId={setLevelId}
-              payment_method={payment_method}
-              setPaymentMethod={setPaymentMethod}
+              member_id={account?.member_id || account?.user_id || 1}
+              existingBooking={checkoutBooking}
+              district={district}
+              service_address={service_address}
               navigate={navigate}
               course={currentCourse}
               coach={currentListing}
-              onBookingSuccess={setPromptPayQr}
+              onBookingSuccess={(booking, paymentSummary) => {
+                setPreviewBookings((current) => [
+                  booking,
+                  ...current.filter((item) => item.booking.booking_id !== booking.booking.booking_id)
+                ]);
+                setLastPaymentSummary(paymentSummary);
+                setCheckoutBooking(null);
+                if (getAccessToken()) {
+                  refreshMemberPackages().catch((issue) =>
+                    notify(
+                      issue instanceof Error
+                        ? `Booking confirmed, but package balances could not be refreshed: ${issue.message}`
+                        : "Booking confirmed, but package balances could not be refreshed."
+                    )
+                  );
+                }
+              }}
             />
           )}
           {screen === "success" && (
             <SuccessScreen
               booking_date={booking_date}
               start_time={start_time}
+              service_mode={service_mode}
+              district={district}
+              service_address={service_address}
               navigate={navigate}
               course={currentCourse}
               coach={currentListing}
-              promptPayQr={promptPayQr}
+              paymentSummary={lastPaymentSummary}
             />
           )}
           {screen === "bookings" && (
@@ -1201,12 +1392,10 @@ export function FitBookingPrototype() {
                 setCoachId(selectedBooking.booking.coach_id);
                 setBookingDate(selectedBooking.booking.booking_date);
                 setStartTime(selectedBooking.booking.start_time);
-                setPackageChoice(
-                  selectedBooking.booking.package_id
-                    ? selectedBooking.member_package?.package_type || null
-                    : null
-                );
-                setPaymentMethod(selectedBooking.orders[0]?.payment_method || "PROMPTPAY");
+                setServiceMode(selectedBooking.booking.service_mode);
+                setDistrict(selectedBooking.booking.service_district || "NIMMAN");
+                setServiceAddress(selectedBooking.booking.service_address || "");
+                setCheckoutBooking(selectedBooking);
                 navigate("checkout");
               }}
               onSubmitReview={submitBookingReview}
@@ -1216,6 +1405,12 @@ export function FitBookingPrototype() {
           {screen === "packages" && (
             <PackagesScreen
               account={account}
+              catalog={packageCatalog}
+              catalogLoading={catalogLoading}
+              catalogError={catalogError}
+              memberPackages={displayedMemberPackages}
+              packagesLoading={getAccessToken() ? packagesLoading : false}
+              packagesError={getAccessToken() ? packagesError : ""}
               onChoose={(name) => {
                 setSelectedPackage(name);
                 navigate("packageDetail");
@@ -1225,11 +1420,31 @@ export function FitBookingPrototype() {
           {screen === "packageDetail" && (
             <PackageDetailScreen
               selected={selectedPackage}
+              catalog={packageCatalog}
               onBack={() => navigate("packages")}
               onChoose={(name) => {
-                setSelectedPackage(name);
-                if (name === "5+1" || name === "10+3" || name === "20+7") setPackageChoice(name);
-                navigate("checkout");
+                setPackageChoice(name as PackageType);
+                setCoachId(1);
+                setCourseId(1);
+                setBookingDate("");
+                setStartTime("");
+                setBookingSelectionValid(false);
+                setServiceMode("GYM");
+                setDistrict("NIMMAN");
+                setServiceAddress("");
+                navigate("booking");
+              }}
+              onSelectPackage={setSelectedPackage}
+              onPurchaseComplete={() => {
+                if (getAccessToken()) {
+                  refreshMemberPackages().catch((issue) =>
+                    notify(
+                      issue instanceof Error
+                        ? `Package purchased, but the balance could not be refreshed: ${issue.message}`
+                        : "Package purchased, but the balance could not be refreshed."
+                    )
+                  );
+                }
               }}
             />
           )}
@@ -1262,6 +1477,9 @@ export function FitBookingPrototype() {
               onSave={updateProfile}
               navigate={navigate}
               previewBookings={previewBookings}
+              memberPackages={displayedMemberPackages}
+              memberPackagesLoading={getAccessToken() ? packagesLoading : false}
+              memberPackagesError={getAccessToken() ? packagesError : ""}
             />
           )}
           {screen === "messages" && account && <Conversation account={account} />}

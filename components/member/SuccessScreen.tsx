@@ -7,10 +7,8 @@ import {
   Clock3,
   MapPin,
   Plus,
-  QrCode,
   Star
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { labels } from "@/lib/labels";
 import {
   preview_coach_listings,
@@ -45,17 +43,23 @@ function formatSqlTime(start_time: string): string {
 export function SuccessScreen({
   booking_date,
   start_time,
+  service_mode,
+  district,
+  service_address,
   navigate,
   course,
   coach,
-  promptPayQr
+  paymentSummary
 }: {
   booking_date: string;
   start_time: string;
+  service_mode: "GYM" | "HOME";
+  district: string;
+  service_address: string;
   navigate: (screen: string) => void;
   course: (typeof preview_courses)[number];
   coach: (typeof preview_coach_listings)[number];
-  promptPayQr?: { order_id: number; payload: string; amount?: number } | null;
+  paymentSummary: string;
 }) {
   return (
     <div className="content-wrap success-wrap">
@@ -74,7 +78,7 @@ export function SuccessScreen({
             <span>YOUR SESSION</span>
             <h2>{course.course_name}</h2>
           </div>
-          <Pill className="booking-status preview-pill">Confirmed</Pill>
+          <Pill className="confirmed-pill">Confirmed · demo payment</Pill>
         </div>
 
         <div className="ticket-coach">
@@ -106,8 +110,12 @@ export function SuccessScreen({
           <div>
             <MapPin size={17} />
             <span>
-              Nimman Fitness Club
-              <small>Chiang Mai · 1.2 km away</small>
+              {service_mode === "GYM" ? "Nimman Fitness Club" : "At-home training"}
+              <small>
+                {service_mode === "GYM"
+                  ? "Chiang Mai · 1.2 km away"
+                  : `${service_address} · ${labels.district[district as keyof typeof labels.district] ?? district}`}
+              </small>
             </span>
           </div>
         </div>
@@ -116,31 +124,12 @@ export function SuccessScreen({
           className="ticket-qr"
           style={{ flexDirection: "column", alignItems: "center", textAlign: "center", gap: "10px" }}
         >
-          {promptPayQr ? (
-            <div
-              style={{
-                background: "#ffffff",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid #e2e8f0",
-                display: "inline-block",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.06)"
-              }}
-            >
-              <QRCodeSVG value={promptPayQr.payload} size={150} />
-            </div>
-          ) : (
-            <div className="fake-qr" aria-label="Illustrative check-in QR code">
-              <QrCode size={76} strokeWidth={1.3} />
-            </div>
-          )}
+          <div className="fake-qr" aria-label="Simulated payment confirmation">
+            <Check size={42} strokeWidth={1.7} />
+          </div>
           <span>
-            <b>{promptPayQr ? `PromptPay Order #${promptPayQr.order_id}` : "Session check-in pass"}</b>
-            <small>
-              {promptPayQr
-                ? `Amount: ฿${(promptPayQr.amount || 3400).toLocaleString()} · Scan with any Thai mobile banking app.`
-                : "Present this pass when checking in at the front desk."}
-            </small>
+            <b>Demo checkout complete</b>
+            <small>{paymentSummary} No real payment was processed.</small>
           </span>
         </div>
 

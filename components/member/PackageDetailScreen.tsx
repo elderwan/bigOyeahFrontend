@@ -8,107 +8,61 @@ import {
   CheckCircle2,
   ChevronRight,
   Dumbbell,
-  QrCode,
   X
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { apiPurchasePackage, apiGetOrderPromptPayQr, getAccessToken } from "@/lib/api-client";
-
-const packageDetails = {
-  "5+1": {
-    label: "5+1 Sessions",
-    price: "฿3,400",
-    rawAmount: 3400,
-    each: "฿680 / paid session",
-    saving: "Save 5%",
-    sessions: 6,
-    details: [
-      "5 paid sessions + 1 bonus session",
-      "Choose your own verified coach",
-      "Valid for 180 days",
-      "Reschedule according to booking terms"
-    ]
-  },
-  "10+3": {
-    label: "10+3 Sessions",
-    price: "฿8,970",
-    rawAmount: 8970,
-    each: "฿690 / session",
-    saving: "Save 14%",
-    sessions: 13,
-    details: [
-      "10 paid sessions + 3 bonus sessions",
-      "Choose your own verified coach",
-      "Valid for 180 days",
-      "Best for building a steady routine"
-    ]
-  },
-  "20+7": {
-    label: "20+7 Sessions",
-    price: "฿17,550",
-    rawAmount: 17550,
-    each: "฿650 / session",
-    saving: "Save 20%",
-    sessions: 27,
-    details: [
-      "20 paid sessions + 7 bonus sessions",
-      "Choose your own verified coach",
-      "Valid for 180 days",
-      "Lowest price per session"
-    ]
-  }
-} as const;
+import { apiPurchasePackage, getAccessToken } from "@/lib/api-client";
+import { PackageCatalogEntry, PackageType } from "@/lib/database";
 
 export function PackageDetailScreen({
   selected,
+  catalog,
   onBack,
-  onChoose
+  onChoose,
+  onSelectPackage,
+  onPurchaseComplete
 }: {
-  selected: string;
+  selected: PackageType;
+  catalog: PackageCatalogEntry[];
   onBack: () => void;
-  onChoose: (packageName: string) => void;
+  onChoose: (packageName: PackageType) => void;
+  onSelectPackage: (packageName: PackageType) => void;
+  onPurchaseComplete: () => void;
 }) {
-  const plan = packageDetails[selected as keyof typeof packageDetails] || packageDetails["10+3"];
+  const plan = catalog.find((entry) => entry.package_type === selected && Number(entry.is_active) === 1);
+  const totalSessions = plan ? Number(plan.paid_sessions) + Number(plan.bonus_sessions) : 0;
+  const planPrice = plan ? Number(plan.price) : 0;
+  const formatBaht = (amount: number) =>
+    `฿${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"PROMPTPAY" | "CARD" | "CASH">("PROMPTPAY");
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<{
     order_id: number;
     amount: number | string;
-    promptpay_payload?: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
   const handlePurchase = async () => {
+    if (!plan) {
+      setErrorMsg("This package is not currently available.");
+      return;
+    }
     setErrorMsg("");
     setPurchasing(true);
     try {
       if (getAccessToken()) {
         const pkgRes = await apiPurchasePackage({
-          package_type: selected,
-          payment_method: paymentMethod
+          package_type: selected
         });
-        const orderId = pkgRes?.order_id || 101;
-        let qrPayload: string | undefined = undefined;
-
-        if (paymentMethod === "PROMPTPAY") {
-          try {
-            const qrRes = await apiGetOrderPromptPayQr(orderId);
-            qrPayload = qrRes.promptpay_payload || qrRes.qr_data;
-          } catch (qrErr: any) {
-            console.warn("PromptPay QR fetch error:", qrErr.message);
-          }
-        }
-
+        if (!pkgRes?.order_id) throw new Error("The package order could not be confirmed.");
         setPurchaseResult({
-          order_id: orderId,
-          amount: pkgRes?.total_amount || plan.price,
-          promptpay_payload: qrPayload
+          order_id: pkgRes.order_id,
+          amount: pkgRes.total_amount ?? plan.price
         });
+        onPurchaseComplete();
       } else {
         setPurchaseResult({
-          order_id: 999,
+          order_id: Date.now(),
           amount: plan.price
         });
       }
@@ -137,14 +91,24 @@ export function PackageDetailScreen({
             <Dumbbell size={20} />
           </span>
           <p className="eyebrow">YOUR NEXT TRAINING CHAPTER</p>
-          <h1>{plan.label}</h1>
+          <h1>{plan ? `${plan.package_type} Sessions` : "Package unavailable"}</h1>
           <p>More time with a coach you trust, and a plan that has room to work.</p>
-          <span className="pill savings-pill">{plan.saving}</span>
+          {plan && (
+            <span className="pill savings-pill">
+              {plan.paid_sessions} paid + {plan.bonus_sessions} bonus
+            </span>
+          )}
         </div>
         <div className="package-detail-price">
-          <b>{plan.price}</b>
-          <span>{plan.each}</span>
-          <small>Verified Chiang Mai training</small>
+          {plan ? (
+            <>
+              <b>{formatBaht(planPrice)}</b>
+              <span>{formatBaht(planPrice / totalSessions)} / session</span>
+              <small>{plan.validity_days} days validity</small>
+            </>
+          ) : (
+            <small>Package data could not be loaded from the catalog.</small>
+          )}
         </div>
       </section>
 
@@ -157,7 +121,15 @@ export function PackageDetailScreen({
             </div>
             <CheckCircle2 size={19} />
           </div>
-          {plan.details.map((detail) => (
+          {(plan
+            ? [
+                `${plan.paid_sessions} paid sessions + ${plan.bonus_sessions} bonus sessions`,
+                `${totalSessions} total coaching sessions`,
+                `Valid for ${plan.validity_days} days`,
+                "One-on-one sessions with a coach you choose"
+              ]
+            : ["Package details are unavailable until the catalog loads."]
+          ).map((detail) => (
             <div className="package-detail-included" key={detail}>
               <span>
                 <Check size={14} />
@@ -177,7 +149,7 @@ export function PackageDetailScreen({
           <div className="package-detail-count">
             <Dumbbell size={17} />
             <span>
-              <b>{plan.sessions} sessions</b>
+            <b>{plan ? `${totalSessions} sessions` : "No package selected"}</b>
               <small>One-to-one coaching</small>
             </span>
           </div>
@@ -185,12 +157,14 @@ export function PackageDetailScreen({
             className="button button-primary"
             onClick={() => setModalOpen(true)}
             style={{ width: "100%", justifyContent: "center" }}
+          disabled={!plan}
           >
-            Purchase package <ArrowRight size={15} />
+          Purchase package <ArrowRight size={15} />
           </button>
           <button
             className="button button-outline"
             onClick={() => onChoose(selected)}
+            disabled={!plan}
             style={{ width: "100%", marginTop: "8px", justifyContent: "center" }}
           >
             Book session with package
@@ -206,26 +180,29 @@ export function PackageDetailScreen({
           </div>
         </div>
         <div className="package-compare-options">
-          {Object.entries(packageDetails).map(([name, option]) => (
+          {catalog.map((option) => (
             <button
-              className={name === selected ? "selected" : ""}
-              key={name}
-              onClick={() => onChoose(name)}
+              className={option.package_type === selected ? "selected" : ""}
+              key={option.package_type}
+              onClick={() => onSelectPackage(option.package_type)}
             >
               <span>
-                <b>{option.label}</b>
-                <small>{option.each}</small>
+                <b>{option.package_type} Sessions</b>
+                <small>
+                  {option.paid_sessions} paid + {option.bonus_sessions} bonus ·{" "}
+                  {option.validity_days} days
+                </small>
               </span>
-              <strong>{option.price}</strong>
+              <strong>{formatBaht(Number(option.price))}</strong>
               <span>
-                {name === selected ? "Selected" : "View details"} <ChevronRight size={14} />
+                {option.package_type === selected ? "Selected" : "View details"}{" "}
+                <ChevronRight size={14} />
               </span>
             </button>
           ))}
         </div>
       </section>
 
-      {/* Package Purchase Modal with PromptPay QR */}
       {modalOpen && (
         <div className="admin-drawer-backdrop" role="presentation" onClick={closeModal}>
           <div
@@ -238,9 +215,17 @@ export function PackageDetailScreen({
           >
             <header>
               <div>
-                <span className="eyebrow">CHECKOUT · SESSION PACKAGE</span>
-                <h2>{purchaseResult ? "Purchase Successful!" : `Purchase ${plan.label}`}</h2>
-                <p>{purchaseResult ? "Your package has been credited to your account." : `Total: ${plan.price}`}</p>
+                <span className="eyebrow">DEMO CHECKOUT · SESSION PACKAGE</span>
+                <h2>
+                  {purchaseResult
+                    ? "Package confirmed"
+                    : `Purchase ${plan?.package_type ?? "package"} sessions`}
+                </h2>
+                <p>
+                  {purchaseResult
+                    ? "The demo payment is complete. No real payment was processed."
+                    : `Total to simulate: ${formatBaht(planPrice)}`}
+                </p>
               </div>
               <button className="icon-button" aria-label="Close" onClick={closeModal}>
                 <X size={19} />
@@ -258,36 +243,20 @@ export function PackageDetailScreen({
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                      <span style={{ fontWeight: 600 }}>{plan.label}</span>
-                      <strong style={{ color: "#166534" }}>{plan.price}</strong>
+                      <span style={{ fontWeight: 600 }}>{plan?.package_type} Sessions</span>
+                      <strong style={{ color: "#166534" }}>{formatBaht(planPrice)}</strong>
                     </div>
-                    <small style={{ color: "#64748b" }}>{plan.sessions} personal training sessions · 180 days validity</small>
+                    <small style={{ color: "#64748b" }}>
+                      {totalSessions} personal training sessions · {plan?.validity_days} days validity
+                    </small>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#334155", display: "block", marginBottom: "8px" }}>
-                      Select payment method
-                    </label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {[
-                        { id: "PROMPTPAY", label: "PromptPay QR", detail: "Scan with any Thai mobile banking app" },
-                        { id: "CARD", label: "Credit / Debit Card", detail: "Visa, Mastercard" },
-                        { id: "CASH", label: "Cash / Front Desk", detail: "Pay in person upon gym visit" }
-                      ].map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          className={`payment-option ${paymentMethod === m.id ? "selected" : ""}`}
-                          onClick={() => setPaymentMethod(m.id as any)}
-                        >
-                          <span className="radio-dot" />
-                          <span>
-                            <b>{m.label}</b>
-                            <small>{m.detail}</small>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="payment-simulation-card">
+                    <span className="payment-simulation-icon"><CheckCircle2 size={17} /></span>
+                    <span>
+                      <b>One-click demo payment</b>
+                      <small>This only updates the demo order. No real payment is taken.</small>
+                    </span>
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
@@ -295,7 +264,7 @@ export function PackageDetailScreen({
                       Cancel
                     </button>
                     <button type="button" className="button button-primary" onClick={handlePurchase} disabled={purchasing}>
-                      {purchasing ? "Processing…" : `Confirm & Pay ${plan.price}`}
+                      {purchasing ? "Simulating payment…" : `Simulate payment · ${formatBaht(planPrice)}`}
                     </button>
                   </div>
                 </div>
@@ -308,26 +277,16 @@ export function PackageDetailScreen({
                   <div>
                     <h3 style={{ margin: "0 0 4px", fontSize: "17px", color: "#0f172a" }}>Order #{purchaseResult.order_id} Confirmed</h3>
                     <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
-                      {plan.sessions} sessions have been added to your FitBooking account.
+                      {totalSessions} sessions have been added to your FitBooking account.
                     </p>
                   </div>
 
-                  {purchaseResult.promptpay_payload ? (
-                    <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-                      <div style={{ background: "#ffffff", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}>
-                        <QRCodeSVG value={purchaseResult.promptpay_payload} size={180} />
-                      </div>
-                      <span style={{ fontSize: "13px", color: "#334155", maxWidth: "320px" }}>
-                        Scan this official PromptPay QR code using your mobile banking application (SCB, KBank, Bangkok Bank, Krungthai).
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "10px", width: "100%", textAlign: "left" }}>
-                      <p style={{ margin: 0, fontSize: "13px", color: "#334155" }}>
-                        <b>Payment Status:</b> Confirmed ({paymentMethod})
-                      </p>
-                    </div>
-                  )}
+                  <div className="payment-simulation-receipt">
+                    <p><b>Payment status:</b> Simulated · No charge</p>
+                    <p>
+                      {formatBaht(Number(purchaseResult.amount))} · {totalSessions} coaching sessions
+                    </p>
+                  </div>
 
                   <button className="button button-primary" onClick={closeModal} style={{ marginTop: "12px", width: "100%" }}>
                     Done

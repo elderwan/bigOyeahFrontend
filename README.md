@@ -10,7 +10,7 @@ This folder contains the frontend foundation for the FitBooking personal-trainin
 - Tailwind CSS
 - lucide-react
 
-The main experience is a responsive UI prototype for members, trainers, and administrators. All data and interactions are browser-only previews. No API has been connected or developed.
+The app combines a responsive member experience with a FastAPI backend. Member sign-in, profile, catalog, booking, package, and payment-history flows use the API when configured; trainer/admin areas and some secondary screens still include preview data. Booking checkout uses a one-click simulated payment only: it updates demo order state and never contacts a payment gateway or transfers money.
 
 ## UI prototype
 
@@ -26,11 +26,11 @@ Demo accounts:
 
 | Role | Username / ID | Password |
 | --- | --- | --- |
-| Member | `alex` | `FitBooking123!` |
-| Trainer | `coach.tan` | `Coach@123` |
-| Admin | `FB-ADMIN-001` | `Admin@123` |
+| Member | `alex.demo` | `DemoPass123!` |
+| Trainer | `tan.coach` | `DemoPass123!` |
+| Admin | `admin.demo` | `DemoPass123!` |
 
-Members can register additional demo accounts. Profile and session data are stored only in the current browser's `localStorage`. Sign-in, staff roles, workflow status changes, and messages are simulations; they are not secure authentication or authorization. Do not use these credentials in production or rely on browser role checks to protect server data.
+Members can register additional accounts. When the API is online, authentication and supported member data are stored by the backend; when using local preview mode, demo state may be kept in the current browser's `localStorage`. Demo credentials and preview role checks are for development only and must not be used as production security controls.
 
 ### Prototype screens
 
@@ -44,7 +44,7 @@ The member workspace includes:
 6. Reviews, progress, and member profile/settings
 7. Messaging with a trainer
 
-Trainer and admin workspaces share the member experience's visual theme but have role-specific navigation and layouts. Schedule, chat, admin tables, and workflow controls use sample data and browser-only state for interaction testing. They do not create bookings, process payments, or update a database.
+Trainer and admin workspaces share the member experience's visual theme but have role-specific navigation and layouts. Some schedule, chat, admin, and workflow views still use sample data. Checkout's **Simulate payment** action is the only payment path in this UI; it confirms a demo booking/order and does not process a real payment.
 
 ## Install and run
 
@@ -98,11 +98,13 @@ frontend/
 └── tsconfig.json
 ```
 
-To connect to FastAPI, copy `.env.example` to `.env.local`:
+To connect the frontend to FastAPI, copy `.env.example` to `.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
+
+The API client normalizes this value to the `/api/v1` base path. With the backend running, member checkout creates a booking and calls `POST /api/v1/orders/bookings/{booking_id}/mock-pay` after the user clicks **Simulate payment**. This endpoint is for local/demo testing only and does not integrate with a payment processor.
 
 ## Field naming rules
 
@@ -186,7 +188,7 @@ Important constraints:
 
 ## Backend integration
 
-When the backend is ready, replace `lib/mock-data.ts` with a service that calls FastAPI, for example:
+The shared API client in `lib/api-client.ts` calls FastAPI and checks HTTP/API errors before exposing data to the UI. A typical request looks like:
 
 ```ts
 const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/bookings`);
@@ -198,7 +200,7 @@ if (!response.ok) {
 const bookings: Booking[] = await response.json();
 ```
 
-FastAPI should return JSON using the SQL column names directly, for example:
+FastAPI returns JSON using the SQL column names directly, for example:
 
 ```json
 {
@@ -231,10 +233,8 @@ coach_schedule_<coach_no>
 
 Send only the `coach_id` or the requested booking time range to FastAPI. The backend is responsible for looking up `coach_no`, validating its format, and safely creating or selecting the table.
 
-## Future development
+## Remaining integration work
 
-1. Wait for a confirmed API contract before connecting the backend; do not invent or assume endpoints for UI-only work.
-2. Move authentication, sessions, role authorization, profiles, messages, and workflow mutations to backend validation and storage.
-3. Replace browser-only preview data with API data while preserving SQL column names and enum values.
-4. Complete the booking calendar and validation after the API and business rules are confirmed.
-5. Add error mapping for MySQL foreign key, CHECK constraint, and trigger errors.
+1. Replace remaining trainer/admin and secondary-screen preview data with API-backed state.
+2. Keep authorization and role checks on the backend; browser role checks are not a security boundary.
+3. Add consistent UI error mapping for MySQL foreign-key, CHECK-constraint, and trigger errors.

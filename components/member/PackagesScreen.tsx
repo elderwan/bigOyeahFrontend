@@ -1,7 +1,7 @@
 "use client";
 
-import { Activity, ArrowRight, Clock3, Dumbbell, ShieldCheck, Sparkles, Trophy } from "lucide-react";
-import { PackageType } from "@/lib/database";
+import { Activity, ArrowRight, Dumbbell, ShieldCheck, Sparkles, Trophy } from "lucide-react";
+import { MemberPackage, PackageCatalogEntry, PackageType } from "@/lib/database";
 import { PublicDemoAccount } from "@/lib/demo-auth";
 import { getMembershipTierInfo } from "@/lib/member-preview-data";
 
@@ -11,25 +11,27 @@ function Pill({ children, className = "" }: { children: React.ReactNode; classNa
 
 export function PackagesScreen({
   account,
+  catalog,
+  catalogLoading,
+  catalogError,
+  memberPackages,
+  packagesLoading,
+  packagesError,
   onChoose
 }: {
   account?: PublicDemoAccount | null;
+  catalog: PackageCatalogEntry[];
+  catalogLoading: boolean;
+  catalogError: string;
+  memberPackages: MemberPackage[];
+  packagesLoading: boolean;
+  packagesError: string;
   onChoose: (name: PackageType) => void;
 }) {
   const tierInfo = getMembershipTierInfo(account?.total_spend || 0, account?.level_code || "BRONZE");
-
-  const plans: {
-    packageType: PackageType;
-    sessions: string;
-    price: string;
-    each: string;
-    saving: string;
-    popular: boolean;
-  }[] = [
-    { packageType: "5+1", sessions: "5+1 Sessions", price: "฿3,400", each: "฿680 / paid session", saving: "Save 5%", popular: false },
-    { packageType: "10+3", sessions: "10+3 Sessions", price: "฿8,970", each: "฿690 / session", saving: "Save 14%", popular: true },
-    { packageType: "20+7", sessions: "20+7 Sessions", price: "฿17,550", each: "฿650 / session", saving: "Save 20%", popular: false }
-  ];
+  const formatBaht = (amount: number) =>
+    `฿${Number(amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  const activePackages = memberPackages.filter((item) => item.status === "ACTIVE");
 
   return (
     <div className="content-wrap narrow-wrap">
@@ -50,41 +52,81 @@ export function PackagesScreen({
         </div>
       </div>
 
+      <section className="member-packages-section">
+        <div className="section-title package-section-title">
+          <div>
+            <h2>Your active packages</h2>
+            <p>Balances from your purchased session packages.</p>
+          </div>
+        </div>
+        {packagesLoading ? (
+          <p role="status">Loading your package balances…</p>
+        ) : packagesError ? (
+          <p role="alert">{packagesError}</p>
+        ) : activePackages.length > 0 ? (
+          <div className="member-package-list">
+            {activePackages.map((item) => (
+              <article className="member-package-card" key={item.package_id}>
+                <div>
+                  <span className="eyebrow">PACKAGE #{item.package_id}</span>
+                  <h3>{item.package_type} Sessions</h3>
+                  <p>
+                    {item.remaining_sessions} of {item.total_sessions} sessions remaining
+                  </p>
+                </div>
+                <div className="member-package-meta">
+                  <strong>{formatBaht(Number(item.price))}</strong>
+                  <span>Expires {new Date(`${item.expire_date}T00:00:00`).toLocaleDateString()}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="member-package-empty">You don’t have any active packages yet.</p>
+        )}
+      </section>
+
       <div className="section-title package-section-title">
         <div>
           <h2>Session packages</h2>
-          <p>One-on-one time with a coach you choose.</p>
+          <p>Current offers from the package catalog.</p>
         </div>
-        <span className="package-validity">
-          <Clock3 size={14} /> 180 days to use
-        </span>
       </div>
 
-      <div className="package-plan-grid">
-        {plans.map((plan) => (
-          <article
-            key={plan.packageType}
-            className={`package-plan ${plan.popular ? "popular" : ""}`}
-          >
-            <span className="popular-ribbon" hidden={!plan.popular}>
-              MOST LOVED
-            </span>
-            <span className="plan-session-icon">
-              <Dumbbell size={20} />
-            </span>
-            <span className="plan-session-count">{plan.sessions}</span>
-            <span className="plan-price">{plan.price}</span>
-            <span className="plan-each">{plan.each}</span>
-            <Pill className="savings-pill">{plan.saving}</Pill>
-            <button
-              className={`button ${plan.popular ? "button-primary" : "button-outline"}`}
-              onClick={() => onChoose(plan.packageType)}
-            >
-              View package <ArrowRight size={14} />
-            </button>
-          </article>
-        ))}
-      </div>
+      {catalogLoading ? (
+        <p role="status">Loading package offers…</p>
+      ) : catalogError ? (
+        <p role="alert">{catalogError}</p>
+      ) : catalog.length > 0 ? (
+        <div className="package-plan-grid">
+          {catalog.map((plan) => {
+            const totalSessions = Number(plan.paid_sessions) + Number(plan.bonus_sessions);
+            const pricePerSession = Number(plan.price) / totalSessions;
+            return (
+              <article className="package-plan" key={plan.package_type}>
+                <span className="plan-session-icon">
+                  <Dumbbell size={20} />
+                </span>
+                <span className="plan-session-count">
+                  {plan.paid_sessions}+{plan.bonus_sessions} Sessions
+                </span>
+                <span className="plan-price">{formatBaht(Number(plan.price))}</span>
+                <span className="plan-each">
+                  {formatBaht(pricePerSession)} / session · {plan.validity_days} days
+                </span>
+                <button
+                  className="button button-outline"
+                  onClick={() => onChoose(plan.package_type)}
+                >
+                  View package <ArrowRight size={14} />
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p>No active session packages are available right now.</p>
+      )}
 
       <section className="membership-progress-card">
         <div className="membership-medal">

@@ -12,6 +12,8 @@
  *   4. PATCH /members/me     -> Update member profile fields
  */
 
+import type { MemberPackage, PackageCatalogEntry } from "@/lib/database";
+
 export const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1";
 export const TOKEN_STORAGE_KEY = "fitbooking_access_token";
 export const API_URL_STORAGE_KEY = "fitbooking_custom_api_url";
@@ -452,8 +454,8 @@ export async function apiCancelBooking(bookingId: number, cancelReason?: string)
   return res.data;
 }
 
-export async function apiGetMemberPackages(): Promise<any[]> {
-  const res = await apiFetch<any[]>("/members/me/packages", { requiresAuth: true });
+export async function apiGetMemberPackages(): Promise<MemberPackage[]> {
+  const res = await apiFetch<MemberPackage[]>("/members/me/packages", { requiresAuth: true });
   return res.data || [];
 }
 
@@ -558,6 +560,14 @@ export async function apiCreateBooking(payload: {
   return res.data;
 }
 
+export async function apiMockPayBooking(bookingId: number): Promise<any> {
+  const res = await apiFetch<any>(`/orders/bookings/${bookingId}/mock-pay`, {
+    method: "POST",
+    requiresAuth: true
+  });
+  return res.data;
+}
+
 export async function apiCreateReview(payload: {
   booking_id: number;
   rating_professional: number;
@@ -588,8 +598,8 @@ export async function apiGetCourses(): Promise<any[]> {
   return res.data || [];
 }
 
-export async function apiGetPackagesCatalog(): Promise<any[]> {
-  const res = await apiFetch<any[]>("/packages");
+export async function apiGetPackagesCatalog(): Promise<PackageCatalogEntry[]> {
+  const res = await apiFetch<PackageCatalogEntry[]>("/packages");
   return res.data || [];
 }
 
@@ -1359,5 +1369,3 @@ export async function apiGetAuthMe(): Promise<any> {
   const res = await apiFetch<any>("/auth/me", { requiresAuth: true });
   return res.data;
 }
-
-

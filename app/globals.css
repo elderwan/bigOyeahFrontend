@@ -116,7 +116,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .gold-pill { color: #80621e; background: #fbf0cf; }
 .savings-pill { color: #0c7a4c; background: #e6f3e8; }
 .confirmed-pill, .verified-pill { color: #10744a; background: #e5f4e9; }
-.photo { display: block; width: 100%; height: 100%; background-color: #e6eee7; background-position: center; background-size: cover; }
+.photo, .coach-photo { display: block; width: 100%; height: 100%; background-color: #e6eee7; background-position: center; background-size: cover; }
 .home-greeting { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .home-greeting .eyebrow { margin-bottom: 6px; letter-spacing: .03em; text-transform: none; }
 .home-greeting h1 { font-size: 27px; }
@@ -145,7 +145,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .week-mini-stats small { color: #96a098; font-size: 9px; }
 .next-session-card { display: flex; align-items: center; width: 100%; padding: 10px; text-align: left; border: 1px solid #ebefea; border-radius: 9px; background: #fff; cursor: pointer; }
 .next-session-card:hover, .booking-history-card:hover { border-color: #c2d7c6; box-shadow: 0 5px 18px rgba(28, 64, 42, .06); }
-.next-session-card > .photo { width: 88px; height: 78px; border-radius: 7px; }
+.next-session-card > .photo, .next-session-card > .coach-photo { width: 88px; height: 78px; border-radius: 7px; }
 .next-session-info { display: grid; gap: 5px; padding-left: 15px; }
 .next-session-info > strong { color: #304037; font-size: 13px; }
 .next-session-info > span:not(.session-facts) { color: #869189; font-size: 10px; }
@@ -158,8 +158,8 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .coach-card { position: relative; overflow: hidden; background: #fff; border: 1px solid #e9eee9; border-radius: 9px; transition: border-color .15s; }
 .coach-card:hover { border-color: #bad2c0; }
 .coach-card-photo { position: relative; display: block; overflow: hidden; width: 100%; height: 143px; padding: 0; border: 0; background: #e6eee7; cursor: pointer; }
-.coach-card-photo > .photo { transition: transform .3s; }
-.coach-card:hover .coach-card-photo > .photo { transform: scale(1.035); }
+.coach-card-photo > .photo, .coach-card-photo > .coach-photo { transition: transform .3s; }
+.coach-card:hover .coach-card-photo > .photo, .coach-card:hover .coach-card-photo > .coach-photo { transform: scale(1.035); }
 .verified { position: absolute; bottom: 8px; left: 8px; display: flex; align-items: center; gap: 4px; padding: 5px 7px; color: #0c7146; background: #fff; border-radius: 20px; font-size: 9px; font-weight: 700; }
 .favorite-button { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; color: #52685a; background: rgba(255,255,255,.94); border-radius: 50%; }
 .favorite-button:hover { color: #d55c55; background: #fff; }
@@ -170,6 +170,15 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .coach-card-meta { margin-top: 6px; color: #828e86; font-size: 9px; }
 .coach-card-price { margin-top: 7px; color: var(--forest); font-size: 12px; font-weight: 700; }
 .coach-card-price small { color: #939e96; font-size: 9px; font-weight: 400; }
+.coach-card > .photo, .coach-card > .coach-photo { width: 100%; height: 132px; border-radius: 0; }
+.coach-card-body { display: grid; gap: 10px; padding: 11px 12px 12px; }
+.coach-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.coach-card-header h3 { margin: 0; color: #34473a; font-size: 12px; line-height: 1.35; }
+.coach-card-header p { margin: 4px 0 0; color: #89958d; font-size: 9px; line-height: 1.4; }
+.coach-rating { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; color: #c28d2d; font-size: 10px; font-weight: 700; }
+.coach-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid #edf0ec; }
+.coach-card-footer > span { display: inline-flex; min-width: 0; align-items: center; gap: 4px; color: #859188; font-size: 9px; }
+.coach-card-footer > strong { flex: 0 0 auto; color: var(--forest); font-size: 10px; }
 .home-bottom-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-top: 24px; }
 .home-promo { position: relative; display: flex; min-height: 156px; overflow: hidden; align-items: center; padding: 20px 23px; color: #fff; background: linear-gradient(90deg, rgba(7,47,34,.95), rgba(8,54,37,.68)), url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=85") center 54% / cover; border-radius: 9px; }
 .home-promo h2 { position: relative; z-index: 1; margin: 9px 0 11px; font-size: 20px; line-height: 1.2; letter-spacing: -.04em; }
@@ -211,7 +220,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .empty-state h3 { margin: 13px 0 4px; color: #34473a; font-size: 16px; }
 .empty-state p { margin: 0 0 13px; font-size: 11px; }
 .coach-profile-hero { position: relative; height: 330px; overflow: hidden; color: #fff; background: #31513f; border-radius: 11px; }
-.coach-profile-hero > .photo { background-position: center 32%; }
+.coach-profile-hero > .photo, .coach-profile-hero > .coach-photo { background-position: center 32%; }
 .profile-image-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,31,23,.81), rgba(5,31,23,.23) 68%), linear-gradient(0deg, rgba(4,27,20,.45), transparent 55%); }
 .coach-profile-hero-copy { position: absolute; right: 30px; bottom: 26px; left: 30px; }
 .verified-light { position: static; display: inline-flex; margin-bottom: 10px; color: #135f3d; }
@@ -251,7 +260,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .course-list { display: grid; gap: 10px; }
 .course-card { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 105px; padding: 10px; text-align: left; background: #fff; border: 1px solid #e9eee9; border-radius: 8px; cursor: pointer; }
 .course-card:hover { border-color: #b6cfbd; }
-.course-card > .photo { flex: 0 0 auto; width: 112px; height: 82px; border-radius: 6px; }
+.course-card > .photo, .course-card > .coach-photo { flex: 0 0 auto; width: 112px; height: 82px; border-radius: 6px; }
 .course-card-copy { display: grid; flex: 1; gap: 5px; min-width: 0; }
 .course-card-copy > strong { color: #2d3e33; font-size: 12px; }
 .course-card-copy > small { color: #8a968e; font-size: 10px; }
@@ -292,11 +301,12 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .location-select small { color: #8c978f; font-size: 9px; }
 .select-field { display: grid; gap: 7px; }
 .select-field label { color: #77847b; font-size: 10px; }
-.select-field select, .admin-panel select { min-height: 36px; padding: 0 10px; color: #425348; background: white; border: 1px solid #e4eae4; border-radius: 5px; font-size: 10px; }
+.select-field select, .select-field input, .admin-panel select { width: 100%; min-height: 36px; padding: 0 10px; color: #425348; background: white; border: 1px solid #e4eae4; border-radius: 5px; font-size: 10px; }
+.home-service-fields { display: grid; gap: 12px; }
 .booking-summary { position: sticky; top: 79px; }
 .booking-summary > .eyebrow, .checkout-total-card > .eyebrow { margin-bottom: 15px; }
 .summary-coach { display: flex; align-items: center; gap: 10px; }
-.summary-coach > .photo { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 7px; }
+.summary-coach > .photo, .summary-coach > .coach-photo { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 7px; }
 .summary-coach > span { display: grid; gap: 3px; }
 .summary-coach b { color: #34473a; font-size: 11px; }
 .summary-coach small { display: flex; align-items: center; gap: 4px; color: #8a958d; font-size: 9px; }
@@ -318,6 +328,9 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .verified-pill { margin-left: auto; }
 .checkout-detail-row { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #eff1ee; }
 .checkout-detail-row span { display: flex; align-items: center; gap: 6px; color: #68776d; font-size: 10px; }
+.checkout-detail-row .checkout-location { align-items: flex-start; }
+.checkout-detail-row .checkout-location > span { display: grid; gap: 3px; }
+.checkout-detail-row .checkout-location small { color: #89958d; font-size: 9px; line-height: 1.4; }
 .checkout-detail-row svg { color: #748e7b; }
 .membership-choice-row { display: flex; align-items: center; gap: 10px; padding: 12px; background: #fbf8ec; border: 1px solid #f1e7c9; border-radius: 7px; }
 .membership-choice-row > span:nth-child(2) { display: grid; gap: 3px; }
@@ -338,6 +351,15 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .package-choice small, .payment-option small { color: #89948c; font-size: 9px; }
 .package-choice > strong { color: #2c563c; font-size: 11px; }
 .payment-method-icon { display: grid; width: 27px; height: 27px; place-items: center; color: #0b7150; background: #eaf4ed; border-radius: 6px; font-size: 14px; }
+.payment-simulation-card { display: flex; align-items: center; gap: 10px; padding: 13px; background: #f0f6ef; border: 1px solid #dce9db; border-radius: 7px; }
+.payment-simulation-icon { display: grid; width: 31px; height: 31px; flex: 0 0 auto; place-items: center; color: #28744a; background: #e0efe0; border-radius: 8px; }
+.payment-simulation-card > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.payment-simulation-card b { color: #355640; font-size: 11px; }
+.payment-simulation-card small { color: #718477; font-size: 9px; line-height: 1.5; }
+.payment-error { margin: 0 0 12px; padding: 10px 11px; color: #8c3b35; background: #fff2ef; border: 1px solid #f2d6d1; border-radius: 6px; font-size: 10px; line-height: 1.5; }
+.payment-simulation-receipt { width: 100%; padding: 12px 14px; color: #47604d; background: #f2f7ef; border: 1px solid #dfeadd; border-radius: 7px; text-align: left; }
+.payment-simulation-receipt p { margin: 0; font-size: 11px; line-height: 1.6; }
+.payment-simulation-receipt p + p { color: #758579; font-size: 10px; }
 .payment-option > svg { color: #9aa49d; }
 .checkout-total-card { position: sticky; top: 79px; padding: 19px; }
 .checkout-total-card > .summary-line:first-of-type { margin-top: 0; }
@@ -361,7 +383,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .booking-status.cancelled { color: #b54d49; background: #faeae8; }
 .booking-status.no-show { color: #657169; background: #eef1ed; }
 .ticket-coach { display: flex; align-items: center; gap: 10px; padding: 13px 0; }
-.ticket-coach > .photo { width: 40px; height: 40px; border-radius: 50%; }
+.ticket-coach > .photo, .ticket-coach > .coach-photo { width: 40px; height: 40px; border-radius: 50%; }
 .ticket-coach > span { display: grid; gap: 4px; }
 .ticket-coach b { color: #36483b; font-size: 11px; }
 .ticket-coach small { color: #8b968f; font-size: 9px; }
@@ -387,7 +409,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .booking-history-card { position: relative; display: flex; align-items: center; gap: 13px; min-height: 102px; padding: 12px; background: white; border: 1px solid #e9eee8; border-radius: 8px; transition: border-color .15s, box-shadow .15s; }
 .history-status-dot { position: absolute; top: 11px; left: 11px; width: 7px; height: 7px; background: #55a271; border: 1px solid white; border-radius: 50%; }
 .history-status-dot.pending { background: #d8a23a; }
-.booking-history-card > .photo { flex: 0 0 auto; width: 76px; height: 75px; border-radius: 6px; }
+.booking-history-card > .photo, .booking-history-card > .coach-photo { flex: 0 0 auto; width: 76px; height: 75px; border-radius: 6px; }
 .history-main { display: grid; justify-items: start; gap: 4px; min-width: 0; }
 .history-main h3 { margin: 1px 0 0; color: #35473b; font-size: 12px; }
 .history-main p, .history-coach { margin: 0; color: #869189; font-size: 9px; }
@@ -408,6 +430,14 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .package-validity { display: inline-flex; align-items: center; gap: 5px; color: #87938b; font-size: 9px; }
 .package-plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .package-plan { position: relative; display: grid; justify-items: start; padding: 19px 17px 16px; background: white; border: 1px solid #e7ece6; border-radius: 9px; }
+.member-packages-section { margin-top: 22px; }
+.member-package-list { display: grid; gap: 9px; }
+.member-package-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 17px; background: #fff; border: 1px solid #e7ece6; border-radius: 9px; }
+.member-package-card h3 { margin: 4px 0; color: #334437; font-size: 13px; }
+.member-package-card p, .member-package-meta span { margin: 0; color: #849087; font-size: 9px; }
+.member-package-meta { display: grid; justify-items: end; gap: 5px; text-align: right; }
+.member-package-meta strong { color: #30473a; font-size: 12px; }
+.member-package-empty { padding: 14px 17px; color: #849087; background: #fff; border: 1px solid #e7ece6; border-radius: 9px; font-size: 10px; }
 .package-plan.popular { border: 1.5px solid #3b8458; box-shadow: 0 5px 18px rgba(17,96,52,.07); }
 .popular-ribbon { position: absolute; top: 0; right: 0; padding: 5px 8px; color: white; background: #398356; border-radius: 0 8px 0 7px; font-size: 8px; font-weight: 700; letter-spacing: .08em; }
 .plan-session-icon { display: grid; width: 37px; height: 37px; margin-bottom: 13px; place-items: center; color: #26734b; background: #e9f4e9; border-radius: 9px; }
@@ -429,7 +459,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .package-footnote { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #89958d; font-size: 9px; }
 .review-form-card { padding: 20px; background: white; border: 1px solid #e8ede7; border-radius: 9px; }
 .review-coach-summary { display: flex; align-items: center; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid #edf0ec; }
-.review-coach-summary > .photo { width: 41px; height: 41px; border-radius: 50%; }
+.review-coach-summary > .photo, .review-coach-summary > .coach-photo { width: 41px; height: 41px; border-radius: 50%; }
 .review-coach-summary > span:nth-child(2) { display: grid; gap: 4px; }
 .review-coach-summary b { color: #35473a; font-size: 11px; }
 .review-coach-summary small { color: #89958d; font-size: 9px; }
@@ -517,6 +547,12 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .setting-membership > div { flex: 1; }
 .setting-membership > div > small { display: block; margin-top: 6px; color: #8c826a; font-size: 9px; }
 .setting-membership .text-link { margin-top: 12px; }
+.profile-package-balances { margin-top: 12px; padding: 14px; border: 1px solid #e7ece6; border-radius: 7px; }
+.profile-package-balances h3 { margin: 0 0 10px; color: #405146; font-size: 11px; }
+.profile-package-balances > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid #edf0ec; }
+.profile-package-balances > div span { display: grid; gap: 4px; }
+.profile-package-balances b, .profile-package-balances strong { color: #405146; font-size: 9px; }
+.profile-package-balances small, .profile-package-balances p { color: #849087; font-size: 9px; }
 .notification-setting { display: flex; align-items: center; justify-content: space-between; padding: 14px; border: 1px solid #edf0ec; border-radius: 7px; }
 .notification-setting b { color: #405146; font-size: 10px; }
 .notification-setting p { margin: 4px 0 0; color: #8a958d; font-size: 9px; }
@@ -633,7 +669,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .kpi-mini-track { height: 4px; background: #e6ece5; border-radius: 4px; }
 .kpi-mini-track i { display: block; height: 100%; background: #48a268; border-radius: inherit; }
 .admin-kpi-coach { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #edf0ec; }
-.admin-kpi-coach > .photo { width: 29px; height: 29px; border-radius: 50%; }
+.admin-kpi-coach > .photo, .admin-kpi-coach > .coach-photo { width: 29px; height: 29px; border-radius: 50%; }
 .admin-kpi-coach > span:nth-child(2) { display: grid; flex: 1; gap: 3px; }
 .admin-kpi-coach b { color: #4a594e; font-size: 8px; }
 .admin-kpi-coach small { color: #939e96; font-size: 7px; }
@@ -654,6 +690,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .screen-content { padding: 31px 27px 50px; }
   .coach-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .coach-card-photo { height: 127px; }
+  .coach-card > .photo, .coach-card > .coach-photo { height: 120px; }
   .week-banner { grid-template-columns: 1fr 140px 1fr; gap: 15px; padding: 19px; }
   .admin-layout { grid-template-columns: 145px minmax(0, 1fr); }
   .admin-main { padding: 16px; }
@@ -700,7 +737,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .section-title h2 { font-size: 15px; }
   .section-title p { font-size: 9px; }
   .text-link { font-size: 9px; }
-  .next-session-card > .photo { width: 67px; height: 70px; }
+  .next-session-card > .photo, .next-session-card > .coach-photo { width: 67px; height: 70px; }
   .next-session-info { gap: 4px; padding-left: 10px; }
   .next-session-info > strong { font-size: 10px; }
   .next-session-info > span:not(.session-facts) { font-size: 8px; }
@@ -709,6 +746,11 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .coach-grid, .coach-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .coach-card-photo { height: 120px; }
   .coach-card-copy { padding: 9px; }
+  .coach-card > .photo, .coach-card > .coach-photo { height: 108px; }
+  .coach-card-body { gap: 8px; padding: 9px; }
+  .coach-card-header h3 { font-size: 10px; }
+  .coach-card-header p, .coach-card-footer > span { font-size: 8px; }
+  .coach-card-footer > strong { font-size: 9px; }
   .coach-card-title { font-size: 10px; }
   .coach-card-meta { font-size: 8px; }
   .home-bottom-grid { grid-template-columns: 1fr; gap: 9px; margin-top: 19px; }
@@ -729,7 +771,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .coach-booking-card { position: static; grid-row: 1; }
   .coach-booking-card > .button { min-height: 38px; }
   .course-card { min-height: 86px; gap: 9px; padding: 8px; }
-  .course-card > .photo { width: 76px; height: 68px; }
+  .course-card > .photo, .course-card > .coach-photo { width: 76px; height: 68px; }
   .course-card-copy > strong { font-size: 10px; }
   .course-card-copy > small { font-size: 8px; }
   .course-meta { flex-wrap: wrap; gap: 6px; }
@@ -754,7 +796,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .ticket-details > div > span { grid-template-columns: auto 1fr; }
   .ticket-details small { grid-column: 1 / -1; }
   .booking-history-card { gap: 9px; min-height: 89px; padding: 9px; }
-  .booking-history-card > .photo { width: 59px; height: 63px; }
+  .booking-history-card > .photo, .booking-history-card > .coach-photo { width: 59px; height: 63px; }
   .history-main h3 { font-size: 9px; }
   .history-main p, .history-coach { font-size: 8px; }
   .history-card-end > b { font-size: 9px; }
@@ -829,6 +871,8 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .topbar { padding: 0 10px; }
   .home-greeting h1 { font-size: 20px; }
   .home-greeting > .pill { font-size: 7px; }
+  .coach-card > .photo, .coach-card > .coach-photo { height: 96px; }
+  .coach-card-footer { align-items: flex-start; flex-direction: column; gap: 5px; }
   .coach-card-photo { height: 105px; }
   .coach-card-title { font-size: 9px; }
   .filter-chip { padding: 6px 8px; }
@@ -1754,7 +1798,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .explore-filter-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; padding-top: 9px; border-top: 1px solid #edf0ec; }
 .booking-picker-stack { display: grid; gap: 12px; }
 .booking-course-summary { display: flex; min-height: 72px; align-items: center; gap: 11px; padding: 10px; background: #fff; border: 1px solid #e8ede7; border-radius: 8px; }
-.booking-course-summary > .photo { width: 57px; height: 52px; flex: 0 0 auto; border-radius: 6px; }
+.booking-course-summary > .photo, .booking-course-summary > .coach-photo { width: 57px; height: 52px; flex: 0 0 auto; border-radius: 6px; }
 .booking-course-summary > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .booking-course-summary > span:nth-child(2) > small { color: #859188; font-size: 8px; }
 .booking-course-summary > span:nth-child(2) > b { color: #405446; font-size: 10px; }
@@ -1838,13 +1882,16 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .history-status-dot.no-show { background: #a0aaa2; }
 .booking-card-open { display: flex; width: 100%; min-width: 0; align-items: center; gap: 12px; padding: 12px; text-align: left; background: transparent; border: 0; cursor: pointer; }
 .booking-card-open:hover { background: #fafcf9; }
-.booking-card-open > .photo { flex: 0 0 auto; width: 69px; height: 68px; border-radius: 6px; }
+.booking-card-open > .photo, .booking-card-open > .coach-photo { flex: 0 0 auto; width: 69px; height: 68px; border-radius: 6px; }
 .booking-card-open .history-status-dot { position: static; flex: 0 0 auto; }
 .booking-card-open .history-main { flex: 1; }
 .booking-card-open .history-main > b { max-width: 100%; color: #35473b; font-size: 11px; }
 .booking-card-open .history-main > span:not(.booking-status) { color: #869189; font-size: 9px; }
 .booking-card-open .history-main small { color: #8b968e; font-size: 8px; }
-.booking-card-open .history-card-end { display: flex; align-items: center; gap: 10px; }
+.booking-card-open .history-card-end { display: grid; grid-template-columns: auto auto; align-items: center; gap: 3px 10px; }
+.booking-card-open .history-card-end > b, .booking-card-open .history-card-end > small { grid-column: 1; }
+.booking-card-open .history-card-end > small { color: #849087; font-size: 8px; text-align: right; }
+.booking-card-open .history-card-end > svg { grid-column: 2; grid-row: 1 / span 2; }
 .booking-card-open .history-card-end > svg { color: #8b988e; }
 .booking-card-pay, .booking-card-review { justify-self: end; min-height: 29px; margin: 0 13px 11px 0; padding: 0 9px; font-size: 9px; }
 .booking-reviews-section { margin-top: 27px; }
@@ -1874,7 +1921,7 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
 .booking-written-review > div span, .booking-written-review small { color: #89948c; font-size: 8px; }
 .booking-written-review p { margin: 0; color: #69786e; font-size: 9px; line-height: 1.5; }
 .booking-detail-wrap > .booking-detail-header { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; padding: 17px; background: #fff; border: 1px solid #e8ede7; border-radius: 9px; }
-.booking-detail-header > .photo { width: 69px; height: 69px; flex: 0 0 auto; border-radius: 50%; }
+.booking-detail-header > .photo, .booking-detail-header > .coach-photo { width: 69px; height: 69px; flex: 0 0 auto; border-radius: 50%; }
 .booking-detail-header > div > .eyebrow { margin-bottom: 5px; font-size: 8px; }
 .booking-detail-header h1 { margin: 0 0 8px; color: #263c2e; font-size: 22px; }
 .booking-detail-header > div > div { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
@@ -1946,13 +1993,13 @@ h1, h2, h3 { font-family: "Manrope", "DM Sans", sans-serif; }
   .booking-calendar-day { min-height: 34px; }
   .booking-time-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .booking-card-open { gap: 8px; padding: 10px; }
-  .booking-card-open > .photo { width: 54px; height: 56px; }
+  .booking-card-open > .photo, .booking-card-open > .coach-photo { width: 54px; height: 56px; }
   .booking-card-open .history-card-end { gap: 3px; }
   .booking-card-open .history-card-end > b { font-size: 9px; }
   .booking-card-open .history-card-end > svg { width: 15px; }
   .booking-detail-grid { grid-template-columns: 1fr; }
   .booking-detail-header { padding: 13px; }
-  .booking-detail-header > .photo { width: 55px; height: 55px; }
+  .booking-detail-header > .photo, .booking-detail-header > .coach-photo { width: 55px; height: 55px; }
   .booking-detail-header h1 { font-size: 18px; }
   .booking-review-row { align-items: flex-start; flex-direction: column; }
   .booking-review-row > .booking-review-form { width: 100%; }

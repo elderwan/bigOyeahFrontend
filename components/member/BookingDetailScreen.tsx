@@ -177,12 +177,18 @@ export function BookingDetailScreen({
   }, [booking.expires_at, booking.status]);
 
   const order = item.orders[0];
-  const discount = order?.discount || 0;
-  const final_amount = order?.final_amount ?? Math.max(0, booking.price - discount);
+  const subtotal = order?.total_amount ?? booking.price;
+  const discount = order?.discount ?? 0;
+  const final_amount = order?.final_amount ?? Math.max(0, subtotal - discount);
+  const isPackageCredit =
+    booking.package_id !== null &&
+    (order?.payment_method === "PACKAGE_CREDIT" || Number(order?.final_amount ?? booking.price) === 0);
   const placeText =
     booking.service_mode === "GYM"
-      ? `${item.gym?.gym_name || "Gym"} · ${item.gym?.address || ""} · ${item.gym ? labels.district[item.gym.district] : ""}`
-      : `${booking.service_address || "Home service"} · ${labels.district[booking.service_district || "NIMMAN"]}`;
+      ? [item.gym?.gym_name, item.gym?.address, item.gym ? labels.district[item.gym.district] : null]
+          .filter(Boolean)
+          .join(" · ")
+      : `At home · ${labels.district[booking.service_district || "NIMMAN"]}`;
   const formattedRemaining =
     remainingSeconds === null
       ? ""
@@ -252,35 +258,68 @@ export function BookingDetailScreen({
         <section className="booking-detail-card">
           <h2>Payment</h2>
           <dl>
-            <div>
-              <dt>Price</dt>
-              <dd>฿{booking.price.toLocaleString()}</dd>
-            </div>
-            <div>
-              <dt>Discount</dt>
-              <dd>−฿{discount.toLocaleString()}</dd>
-            </div>
-            <div>
-              <dt>Final amount</dt>
-              <dd>฿{final_amount.toLocaleString()}</dd>
-            </div>
+            {isPackageCredit ? (
+              <>
+                <div>
+                  <dt>Package purchase price</dt>
+                  <dd>
+                    {item.member_package
+                      ? `฿${Number(item.member_package.price).toLocaleString()}`
+                      : "Package details unavailable"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Amount due for this booking</dt>
+                  <dd>฿0 · covered by package</dd>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <dt>Price</dt>
+                  <dd>฿{subtotal.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Discount</dt>
+                  <dd>−฿{discount.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Final amount</dt>
+                  <dd>฿{final_amount.toLocaleString()}</dd>
+                </div>
+              </>
+            )}
             <div>
               <dt>Payment method</dt>
-              <dd>{order?.payment_method ? labels.payment_method[order.payment_method] : "Not selected"}</dd>
+              <dd>
+                {order?.payment_method
+                  ? labels.payment_method[order.payment_method]
+                  : order?.payment_status === "PAID"
+                  ? "Simulated payment"
+                  : "Not selected"}
+              </dd>
             </div>
             <div>
               <dt>Payment status</dt>
               <dd>{order ? labels.payment_status[order.payment_status] : "Unpaid"}</dd>
             </div>
             <div>
-              <dt>Payment time</dt>
+              <dt>{isPackageCredit ? "Credit applied at" : "Payment time"}</dt>
               <dd>{order?.payment_time || "Not paid"}</dd>
             </div>
             {booking.package_id !== null && item.member_package && (
               <>
                 <div>
                   <dt>Package</dt>
-                  <dd>{labels.package_type[item.member_package.package_type]}</dd>
+                  <dd>
+                    #{item.member_package.package_id} ·{" "}
+                    {labels.package_type[item.member_package.package_type]} ·{" "}
+                    {item.member_package.total_sessions} sessions
+                  </dd>
+                </div>
+                <div>
+                  <dt>Package purchased</dt>
+                  <dd>{item.member_package.purchase_date}</dd>
                 </div>
                 <div>
                   <dt>Remaining sessions</dt>
@@ -338,7 +377,7 @@ export function BookingDetailScreen({
       <div className="booking-detail-actions">
         {booking.status === "PENDING" && (
           <button className="button button-primary" onClick={onPayNow}>
-            Pay now <ArrowRight size={15} />
+            Simulate payment <ArrowRight size={15} />
           </button>
         )}
         {["PENDING", "CONFIRMED"].includes(booking.status) && (

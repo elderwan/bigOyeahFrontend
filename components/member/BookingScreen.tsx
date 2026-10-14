@@ -106,6 +106,8 @@ export function BookingScreen({
   setMode,
   district,
   setDistrict,
+  service_address,
+  setServiceAddress,
   navigate,
   coach,
   course,
@@ -123,6 +125,8 @@ export function BookingScreen({
   setMode: (value: "GYM" | "HOME") => void;
   district: string;
   setDistrict: (value: string) => void;
+  service_address: string;
+  setServiceAddress: (value: string) => void;
   navigate: (screen: string) => void;
   coach: (typeof preview_coach_listings)[number];
   course: (typeof preview_courses)[number];
@@ -144,12 +148,13 @@ export function BookingScreen({
     service_mode === "GYM"
       ? supportsGym
       : supportsHome && districts.includes(district as keyof typeof labels.district);
+  const validAddress = service_mode !== "HOME" || service_address.trim().length >= 8;
   const validCourse =
     course.is_active === 1 &&
     coach_course?.is_active === 1 &&
     coach_course.coach_id === coach_id &&
     coach_course.course_id === course_id;
-  const canContinue = bookingSelectionValid && validCourse && validPlace;
+  const canContinue = bookingSelectionValid && validCourse && validPlace && validAddress;
 
   useEffect(() => {
     if (service_mode === "GYM" && !supportsGym && supportsHome) {
@@ -173,6 +178,8 @@ export function BookingScreen({
       ? "This course is not currently offered by the selected trainer."
       : !validPlace
       ? "Choose a service option supported by this trainer."
+      : !validAddress
+      ? "Enter a full address for at-home training."
       : "";
 
   return (
@@ -249,19 +256,32 @@ export function BookingScreen({
                 </span>
               </div>
             ) : (
-              <div className="select-field">
-                <label htmlFor="district">Your neighborhood</label>
-                <select
-                  id="district"
-                  value={district}
-                  onChange={(event) => setDistrict(event.target.value)}
-                >
-                  {districts.map((area) => (
-                    <option key={String(area)} value={String(area)}>
-                      {labels.district[area as keyof typeof labels.district] || String(area)}
-                    </option>
-                  ))}
-                </select>
+              <div className="home-service-fields">
+                <div className="select-field">
+                  <label htmlFor="district">Your neighborhood</label>
+                  <select
+                    id="district"
+                    value={district}
+                    onChange={(event) => setDistrict(event.target.value)}
+                  >
+                    {districts.map((area) => (
+                      <option key={String(area)} value={String(area)}>
+                        {labels.district[area as keyof typeof labels.district] || String(area)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="select-field">
+                  <label htmlFor="service-address">Street address and unit</label>
+                  <input
+                    id="service-address"
+                    autoComplete="street-address"
+                    maxLength={255}
+                    value={service_address}
+                    onChange={(event) => setServiceAddress(event.target.value)}
+                    placeholder="House number, street, and unit"
+                  />
+                </div>
               </div>
             )}
           </section>
@@ -340,7 +360,7 @@ export function BookingScreen({
             </p>
           )}
           <p className="secure-note">
-            <ShieldCheck size={13} /> Preview only · no booking or charge is created.
+            <ShieldCheck size={13} /> The session is reserved after the demo payment is confirmed.
           </p>
         </aside>
       </div>
